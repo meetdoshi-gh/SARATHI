@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SARATHI — Replay Buffer Design</title>
+<style>
+body {
+  --bg:#0c0b09; --bg2:#1a1714; --bg3:#221f1b;
+  --ink:#f0ede6; --ink2:#b8b4aa; --ink3:#888580;
+  --bdr:rgba(255,255,255,.09); --sh:0 2px 10px rgba(0,0,0,.55);
+  --sac-bg:#0f1f2e; --sac-bd:#0284C7; --sac-h:#7dd3fc; --sac-s:#38bdf8;
+  --rs-bg:#2e0f1f;  --rs-bd:#DB2777;  --rs-h:#f9a8d4;  --rs-s:#ec4899;
+  --lstm-bg:#2e1507;--lstm-bd:#EA580C;--lstm-h:#fdba74; --lstm-s:#f97316;
+  --buf-bg:#0e1f12; --buf-bd:#16a34a; --buf-h:#86efac;  --buf-s:#4ade80;
+  --t-bg:#1a1a2e;   --t-bd:#6366f1;   --t-h:#a5b4fc;   --t-s:#818cf8;
+
+  background:var(--bg); color:var(--ink);
+  font-family:'Segoe UI',system-ui,sans-serif;
+  margin:0; padding:16px 0 24px; min-width:760px;
+}
+body.light {
+  --bg:#f5f3ef; --bg2:#ffffff; --bg3:#eeebe5;
+  --ink:#1a1714; --ink2:#44403c; --ink3:#78716c;
+  --bdr:rgba(0,0,0,.10); --sh:0 2px 8px rgba(0,0,0,.12);
+  --sac-bg:#e0f2fe; --sac-bd:#0369a1; --sac-h:#075985; --sac-s:#0284c7;
+  --rs-bg:#fce7f3;  --rs-bd:#be185d;  --rs-h:#9d174d;  --rs-s:#db2777;
+  --lstm-bg:#ffedd5;--lstm-bd:#c2410c;--lstm-h:#9a3412;--lstm-s:#ea580c;
+  --buf-bg:#dcfce7; --buf-bd:#15803d; --buf-h:#14532d; --buf-s:#16a34a;
+  --t-bg:#eef2ff;   --t-bd:#4f46e5;   --t-h:#3730a3;   --t-s:#6366f1;
+}
+
+.wrap { overflow-x:auto; padding:0 20px; }
+.title { text-align:center; font-size:13px; font-weight:700; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--ink3); margin-bottom:20px; }
+
+.compare { display:grid; grid-template-columns:1fr 1fr; gap:22px; min-width:720px; }
+
+/* card */
+.card { border-radius:12px; border:1.5px solid; overflow:hidden; }
+.card-head { padding:14px 18px; border-bottom:1px solid var(--bdr); }
+.card-head .ttl { font-size:15px; font-weight:800; }
+.card-head .sub { font-size:11px; color:var(--ink2); margin-top:4px; }
+.card-body { padding:16px 18px; display:flex; flex-direction:column; gap:10px; }
+
+.card-sac { border-color:var(--sac-bd); }
+.card-sac .card-head { background:var(--sac-bg); }
+.card-sac .card-head .ttl { color:var(--sac-h); }
+.card-sac .card-body { background:var(--bg2); }
+
+.card-rs  { border-color:var(--rs-bd); box-shadow:0 0 20px rgba(219,39,119,.18); }
+.card-rs  .card-head { background:var(--rs-bg); }
+.card-rs  .card-head .ttl { color:var(--rs-h); }
+.card-rs  .card-body { background:var(--bg2); }
+
+/* visual buffer strip */
+.buf-strip { display:flex; gap:4px; align-items:center; flex-wrap:wrap; margin-bottom:4px; }
+.cell { width:28px; height:28px; border-radius:4px; border:1.5px solid;
+  display:flex; align-items:center; justify-content:center;
+  font-size:7px; font-weight:700; text-align:center; line-height:1.2; }
+.cell-t { background:var(--t-bg); border-color:var(--t-bd); color:var(--t-h); }
+.cell-ep { background:var(--rs-bg); border-color:var(--rs-bd); color:var(--rs-h); }
+.cell-ep2 { background:var(--sac-bg); border-color:var(--sac-bd); color:var(--sac-h); }
+.cell-ep3 { background:var(--buf-bg); border-color:var(--buf-bd); color:var(--buf-h); }
+.cell-gray { background:rgba(107,114,128,.1); border-color:rgba(107,114,128,.3); color:var(--ink3); }
+
+.buf-label { font-size:9px; color:var(--ink3); margin-bottom:6px; letter-spacing:.08em; text-transform:uppercase; }
+
+/* highlight box */
+.hl { border-radius:8px; padding:10px 12px; border:1.5px solid; }
+.hl .key { font-size:11px; font-weight:700; margin-bottom:4px; }
+.hl .val { font-size:11px; color:var(--ink2); line-height:1.55; }
+
+.hl-sac { background:rgba(2,132,199,.1); border-color:rgba(2,132,199,.3); }
+.hl-sac .key { color:var(--sac-h); }
+.hl-rs  { background:rgba(219,39,119,.1); border-color:rgba(219,39,119,.3); }
+.hl-rs  .key { color:var(--rs-h); }
+.hl-lstm{ background:rgba(234,88,12,.1);  border-color:rgba(234,88,12,.3); }
+.hl-lstm .key { color:var(--lstm-h); }
+.hl-warn{ background:rgba(234,88,12,.08); border-color:rgba(234,88,12,.25); }
+.hl-warn .key { color:var(--lstm-h); }
+
+.seq-row { display:flex; gap:3px; align-items:center; margin:6px 0; }
+.seq-arrow { color:var(--ink3); font-size:14px; margin:0 4px; }
+
+/* note bar */
+.note { margin-top:18px; padding:12px 16px; background:var(--bg2);
+  border:1px solid var(--bdr); border-radius:10px;
+  font-size:11px; color:var(--ink2); line-height:1.6; }
+.note strong { color:var(--ink); }
+
+/* legend */
+.legend { display:flex; flex-wrap:wrap; gap:8px 18px;
+  margin:14px 0 0; padding:10px 14px;
+  background:var(--bg2); border:1px solid var(--bdr); border-radius:8px; }
+.leg { display:flex; align-items:center; gap:6px; font-size:10px; color:var(--ink2); }
+.leg-dot { width:9px; height:9px; border-radius:2px; flex-shrink:0; }
+
+#tog { position:fixed; top:14px; right:16px; width:34px; height:34px;
+  border-radius:50%; border:1.5px solid var(--bdr); background:var(--bg2);
+  color:var(--ink2); font-size:15px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:var(--sh); z-index:99; }
+</style>
+</head>
+<body>
+<button id="tog" onclick="toggle()">🌙</button>
+<div class="wrap">
+  <div class="title">Replay Buffer Design — Standard (SAC) vs Episode-Based (RSAC)</div>
+  <div class="compare">
+
+    <!-- SAC -->
+    <div class="card card-sac">
+      <div class="card-head">
+        <div class="ttl">SAC — Flat Transition Buffer</div>
+        <div class="sub">Standard off-policy experience replay</div>
+      </div>
+      <div class="card-body">
+        <div class="buf-label">Buffer contents (each cell = one transition)</div>
+        <div class="buf-strip">
+          <div class="cell cell-t">s₁<br>a₁</div>
+          <div class="cell cell-t">s₂<br>a₂</div>
+          <div class="cell cell-t">s₃<br>a₃</div>
+          <div class="cell cell-t">s₄<br>a₄</div>
+          <div class="cell cell-t">s₅<br>a₅</div>
+          <div class="cell cell-t">s₆<br>a₆</div>
+          <div class="cell cell-t">s₇<br>a₇</div>
+          <div class="cell cell-t">s₈<br>a₈</div>
+          <div class="cell cell-gray">···</div>
+        </div>
+        <div class="buf-label" style="margin-top:10px">Sampling — random i.i.d. selection</div>
+        <div class="buf-strip">
+          <div class="cell cell-t" style="opacity:.4">s₁</div>
+          <div class="cell cell-t" style="outline:2px solid var(--sac-bd)">s₂</div>
+          <div class="cell cell-t" style="opacity:.4">s₃</div>
+          <div class="cell cell-t" style="opacity:.4">s₄</div>
+          <div class="cell cell-t" style="outline:2px solid var(--sac-bd)">s₅</div>
+          <div class="cell cell-t" style="opacity:.4">s₆</div>
+          <div class="cell cell-t" style="outline:2px solid var(--sac-bd)">s₇</div>
+          <div class="cell cell-t" style="opacity:.4">s₈</div>
+        </div>
+        <div class="hl hl-sac">
+          <div class="key">How it works</div>
+          <div class="val">Each entry is a single (s, a, r, s', done) tuple. On each training step, <strong>batch_size=128</strong> tuples are sampled uniformly at random. Transitions may come from different episodes or non-contiguous timesteps.</div>
+        </div>
+        <div class="hl hl-sac" style="opacity:.8">
+          <div class="key">Why this is fine for SAC</div>
+          <div class="val">SAC's feedforward networks process each timestep independently. Temporal ordering is irrelevant — the Markov property holds at the transition level. i.i.d. sampling maximizes sample diversity.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RSAC -->
+    <div class="card card-rs">
+      <div class="card-head">
+        <div class="ttl">RSAC — Episode-Based Buffer ★</div>
+        <div class="sub">Custom design — built from scratch</div>
+      </div>
+      <div class="card-body">
+        <div class="buf-label">Buffer contents (3 stored episodes shown)</div>
+        <div class="buf-strip">
+          <div class="cell cell-ep">ep1<br>t₁</div>
+          <div class="cell cell-ep">ep1<br>t₂</div>
+          <div class="cell cell-ep">ep1<br>t₃</div>
+          <div class="cell cell-ep">ep1<br>t₄</div>
+          <div class="cell cell-ep2">ep2<br>t₁</div>
+          <div class="cell cell-ep2">ep2<br>t₂</div>
+          <div class="cell cell-ep2">ep2<br>t₃</div>
+          <div class="cell cell-ep3">ep3<br>t₁</div>
+          <div class="cell cell-ep3">ep3<br>t₂</div>
+          <div class="cell cell-gray">···</div>
+        </div>
+        <div class="buf-label" style="margin-top:10px">Sampling — contiguous fragment of length T=16</div>
+        <div class="seq-row">
+          <div class="cell cell-ep" style="opacity:.3">t₁</div>
+          <div class="cell cell-ep" style="outline:2px solid var(--rs-bd)">t₂</div>
+          <div class="cell cell-ep" style="outline:2px solid var(--rs-bd)">t₃</div>
+          <div class="cell cell-ep" style="outline:2px solid var(--rs-bd)">t₄</div>
+          <div class="cell cell-ep" style="opacity:.3">t₅</div>
+          <span class="seq-arrow">→</span>
+          <span style="font-size:11px;color:var(--rs-h)">T=16 sequence</span>
+        </div>
+        <div class="hl hl-rs">
+          <div class="key">How it works</div>
+          <div class="val">Episodes stored as lists of transitions. Buffer tracks total transition count. Capacity exceeded → oldest episode evicted. Sampling: pick random episode, pick random start index, slice T=16 transitions.</div>
+        </div>
+        <div class="hl hl-lstm">
+          <div class="key">Why temporal coherence is critical</div>
+          <div class="val">The LSTM hidden state is initialized to zeros at the start of each sampled fragment. If the T transitions came from <strong>different episodes or non-contiguous steps</strong>, the LSTM's temporal reasoning would be based on incoherent dynamics — producing meaningless gradients.</div>
+        </div>
+        <div class="hl hl-warn">
+          <div class="key">Standard RL libraries don't support this</div>
+          <div class="val">Stable-Baselines3, CleanRL, and similar frameworks assume flat transition buffers. The episode-based buffer and sequence-batch dataloader were designed and implemented from scratch for this project.</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /compare -->
+
+  <div class="note">
+    <strong>Capacity equivalence:</strong>
+    SAC uses a flat buffer sized to hold <strong>50 epochs × 50 batches × 128</strong> transitions.
+    RSAC's episode buffer is sized in total transitions (same ballpark) but organized by episode,
+    with a minimum episode length gate — episodes shorter than T=16 are discarded to prevent degenerate short fragments.
+    The deque-of-episodes structure evicts the oldest episode (not the oldest transition) when capacity is exceeded,
+    which is a deliberate choice to preserve episode integrity during eviction.
+  </div>
+
+  <div class="legend">
+    <div class="leg"><div class="leg-dot" style="background:#6366f1"></div>SAC transition tuples</div>
+    <div class="leg"><div class="leg-dot" style="background:#0284C7"></div>SAC random i.i.d. sample</div>
+    <div class="leg"><div class="leg-dot" style="background:#DB2777"></div>RSAC episode 1</div>
+    <div class="leg"><div class="leg-dot" style="background:#0284C7"></div>RSAC episode 2</div>
+    <div class="leg"><div class="leg-dot" style="background:#16a34a"></div>RSAC episode 3</div>
+    <div class="leg"><div class="leg-dot" style="background:#EA580C"></div>RSAC contiguous fragment (T=16)</div>
+  </div>
+</div>
+<script>
+let dark = true;
+function toggle() {
+  dark = !dark;
+  document.body.className = dark ? '' : 'light';
+  document.getElementById('tog').textContent = dark ? '🌙' : '☀️';
+}
+</script>
+</body>
+</html>

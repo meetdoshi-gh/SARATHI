@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SARATHI — System Architecture</title>
+<style>
+body {
+  --bg:#0c0b09; --bg2:#1a1714; --bg3:#221f1b;
+  --ink:#f0ede6; --ink2:#b8b4aa; --ink3:#888580;
+  --bdr:rgba(255,255,255,.09);
+  --sh:0 2px 10px rgba(0,0,0,.55);
+  --env-bg:#1a0d2e;  --env-bd:#7B35CC; --env-h:#c090ff; --env-s:#a070e8;
+  --cam-bg:#0d1a2e;  --cam-bd:#2563EB; --cam-h:#93c5fd; --cam-s:#60a5fa;
+  --enc-bg:#0d261a;  --enc-bd:#059669; --enc-h:#6ee7b7; --enc-s:#34d399;
+  --fus-bg:#1f1a07;  --fus-bd:#D97706; --fus-h:#fcd34d; --fus-s:#f59e0b;
+  --sac-bg:#0f1f2e;  --sac-bd:#0284C7; --sac-h:#7dd3fc; --sac-s:#38bdf8;
+  --act-bg:#1a0a1a;  --act-bd:#9333EA; --act-h:#d8b4fe; --act-s:#a855f7;
+  --rew-bg:#0e1f12;  --rew-bd:#16a34a; --rew-h:#86efac; --rew-s:#4ade80;
+  --lstm-bg:#2e1507; --lstm-bd:#EA580C;--lstm-h:#fdba74; --lstm-s:#f97316;
+  background:var(--bg); color:var(--ink);
+  font-family:'Segoe UI',system-ui,sans-serif;
+  margin:0; padding:20px 0 28px;
+}
+body.light {
+  --bg:#f5f3ef; --bg2:#ffffff; --bg3:#eeebe5;
+  --ink:#1a1714; --ink2:#44403c; --ink3:#78716c;
+  --bdr:rgba(0,0,0,.10); --sh:0 2px 8px rgba(0,0,0,.12);
+  --env-bg:#ede9fb;  --env-bd:#7B35CC; --env-h:#6d28d9; --env-s:#7c3aed;
+  --cam-bg:#dbeafe;  --cam-bd:#1d4ed8; --cam-h:#1e40af; --cam-s:#2563eb;
+  --enc-bg:#d1fae5;  --enc-bd:#047857; --enc-h:#065f46; --enc-s:#059669;
+  --fus-bg:#fef3c7;  --fus-bd:#b45309; --fus-h:#92400e; --fus-s:#d97706;
+  --sac-bg:#e0f2fe;  --sac-bd:#0369a1; --sac-h:#075985; --sac-s:#0284c7;
+  --act-bg:#f3e8ff;  --act-bd:#7e22ce; --act-h:#581c87; --act-s:#9333ea;
+  --rew-bg:#dcfce7;  --rew-bd:#15803d; --rew-h:#14532d; --rew-s:#16a34a;
+  --lstm-bg:#ffedd5; --lstm-bd:#c2410c;--lstm-h:#9a3412;--lstm-s:#ea580c;
+}
+
+.page { max-width:540px; margin:0 auto; padding:0 24px; }
+.title { text-align:center; font-size:12px; font-weight:700; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--ink3); margin-bottom:22px; }
+
+/* vertical pipeline */
+.pipeline { display:flex; flex-direction:column; align-items:stretch; gap:0; }
+
+/* down-arrow connector */
+.arrow { align-self:center; width:2px; height:24px; position:relative;
+  background:linear-gradient(to bottom, rgba(255,255,255,.06), var(--ink3)); }
+.arrow::after { content:''; position:absolute; bottom:-6px; left:50%;
+  transform:translateX(-50%);
+  border-left:5px solid transparent; border-right:5px solid transparent;
+  border-top:7px solid var(--ink3); }
+
+/* node wrapper — provides tooltip anchor context */
+.nw { position:relative; }
+
+/* node card */
+.node { border-radius:10px; padding:13px 16px; border:1.5px solid;
+  box-shadow:var(--sh); cursor:default; }
+.node .row { display:flex; align-items:baseline; gap:10px; margin-bottom:5px; }
+.lbl { font-size:9px; font-weight:700; letter-spacing:.16em;
+  text-transform:uppercase; flex-shrink:0; }
+.ttl { font-size:14px; font-weight:700; line-height:1.2; }
+.sub { font-size:11px; line-height:1.55; color:var(--ink2); }
+.badge { display:inline-block; font-size:8px; font-weight:700;
+  letter-spacing:.1em; text-transform:uppercase;
+  border-radius:4px; padding:2px 7px; margin-top:7px; }
+
+/* tooltip — anchored to right of the node wrapper */
+.tip {
+  display:none; position:absolute;
+  left:calc(100% + 14px); top:50%; transform:translateY(-50%);
+  z-index:300;
+  background:var(--bg3); border:1px solid var(--bdr);
+  border-radius:8px; padding:10px 12px;
+  font-size:11px; color:var(--ink2);
+  width:210px; white-space:normal; line-height:1.55;
+  box-shadow:0 4px 20px rgba(0,0,0,.6);
+  pointer-events:none;
+}
+/* left-pointing caret */
+.tip::before {
+  content:''; position:absolute;
+  right:100%; top:50%; transform:translateY(-50%);
+  border:6px solid transparent;
+  border-right-color:var(--bdr);
+}
+.tip::after {
+  content:''; position:absolute;
+  right:calc(100% - 1px); top:50%; transform:translateY(-50%);
+  border:6px solid transparent;
+  border-right-color:var(--bg3);
+}
+.nw:hover .tip { display:block; }
+
+/* colour themes */
+.n-env { background:var(--env-bg); border-color:var(--env-bd); }
+.n-env .lbl{color:var(--env-s);} .n-env .ttl{color:var(--env-h);}
+.n-env .badge{background:var(--env-bd);color:#fff;}
+
+.n-cam { background:var(--cam-bg); border-color:var(--cam-bd); }
+.n-cam .lbl{color:var(--cam-s);} .n-cam .ttl{color:var(--cam-h);}
+.n-cam .badge{background:var(--cam-bd);color:#fff;}
+
+.n-enc { background:var(--enc-bg); border-color:var(--enc-bd); }
+.n-enc .lbl{color:var(--enc-s);} .n-enc .ttl{color:var(--enc-h);}
+.n-enc .badge{background:var(--enc-bd);color:#fff;}
+
+.n-fus { background:var(--fus-bg); border-color:var(--fus-bd); }
+.n-fus .lbl{color:var(--fus-s);} .n-fus .ttl{color:var(--fus-h);}
+.n-fus .badge{background:var(--fus-bd);color:#fff;}
+
+.n-sac { background:var(--sac-bg); border-color:var(--sac-bd);
+  box-shadow:var(--sh),0 0 18px rgba(2,132,199,.22); }
+.n-sac .lbl{color:var(--sac-s);} .n-sac .ttl{color:var(--sac-h);}
+.n-sac .badge{background:var(--sac-bd);color:#fff;}
+
+.n-act { background:var(--act-bg); border-color:var(--act-bd); }
+.n-act .lbl{color:var(--act-s);} .n-act .ttl{color:var(--act-h);}
+.n-act .badge{background:var(--act-bd);color:#fff;}
+
+.n-rew { background:var(--rew-bg); border-color:var(--rew-bd); }
+.n-rew .lbl{color:var(--rew-s);} .n-rew .ttl{color:var(--rew-h);}
+.n-rew .badge{background:var(--rew-bd);color:#fff;}
+
+/* RSAC banner */
+.rsac-banner { display:flex; gap:12px; align-items:flex-start;
+  margin-top:18px; padding:13px 16px;
+  background:var(--lstm-bg); border:1.5px solid var(--lstm-bd);
+  border-radius:10px; }
+.rb-lbl { font-size:9px; font-weight:700; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--lstm-s); white-space:nowrap; padding-top:1px; }
+.rb-body { font-size:11px; color:var(--ink2); line-height:1.6; }
+.rb-body strong { color:var(--lstm-h); }
+
+/* legend */
+.legend { display:flex; flex-wrap:wrap; gap:8px 16px;
+  margin-top:16px; padding:11px 14px;
+  background:var(--bg2); border:1px solid var(--bdr); border-radius:8px; }
+.leg { display:flex; align-items:center; gap:6px; font-size:10px; color:var(--ink2); }
+.leg-dot { width:9px; height:9px; border-radius:2px; flex-shrink:0; }
+
+#tog { position:fixed; top:14px; right:16px; width:34px; height:34px;
+  border-radius:50%; border:1.5px solid var(--bdr); background:var(--bg2);
+  color:var(--ink2); font-size:15px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:var(--sh); z-index:999; }
+</style>
+</head>
+<body>
+<button id="tog" onclick="toggle()">🌙</button>
+
+<div class="page">
+  <div class="title">SARATHI — End-to-End System Architecture</div>
+
+  <div class="pipeline">
+
+    <div class="nw">
+      <div class="node n-env">
+        <div class="row"><span class="lbl">Environment</span><span class="ttl">MetaDrive Simulator</span></div>
+        <div class="sub">Single fixed map · no traffic · continuous action space</div>
+        <span class="badge">POMDP</span>
+      </div>
+      <div class="tip">MetaDrive provides a composable road network. The POMDP formulation strips velocity, heading &amp; acceleration — leaving only visual perception and a nav hint to the checkpoint.</div>
+    </div>
+
+    <div class="arrow"></div>
+
+    <div class="nw">
+      <div class="node n-cam">
+        <div class="row"><span class="lbl">Sensors</span><span class="ttl">Stereo Cameras + Nav Vector</span></div>
+        <div class="sub">Left &amp; Right · 120×160 · Grayscale · 65° FOV · Navigation 10-dim</div>
+        <span class="badge">No velocity · No heading</span>
+      </div>
+      <div class="tip">Two hood-mounted virtual cameras. Grayscale reduces per-frame memory 3× vs RGB. The 10-d nav vector gives bearing &amp; distance to checkpoint only — no dynamics.</div>
+    </div>
+
+    <div class="arrow"></div>
+
+    <div class="nw">
+      <div class="node n-enc">
+        <div class="row"><span class="lbl">Perception</span><span class="ttl">Shared CNN Encoder ×2</span></div>
+        <div class="sub">Runs on left &amp; right frames independently · 120×160→128-d · 3 blocks · GroupNorm · MaxPool</div>
+        <span class="badge">72 K params</span>
+      </div>
+      <div class="tip">Same 72K-param encoder runs on both frames (shared weights). GroupNorm is batch-size-independent — important for RL's small, shifting mini-batches. Returns two 128-d feature vectors.</div>
+    </div>
+
+    <div class="arrow"></div>
+
+    <div class="nw">
+      <div class="node n-fus">
+        <div class="row"><span class="lbl">Fusion</span><span class="ttl">Feature Concatenation</span></div>
+        <div class="sub">[left 128 ‖ right 128 ‖ nav 10] → 266-d fused representation</div>
+        <span class="badge">InputEncoderLR</span>
+      </div>
+      <div class="tip">Simple concatenation — no learned fusion gate. Fully differentiable, adds zero parameters. Actor and each critic hold separate encoder instances to isolate gradient signals.</div>
+    </div>
+
+    <div class="arrow"></div>
+
+    <div class="nw">
+      <div class="node n-sac">
+        <div class="row"><span class="lbl">Policy · SAC / RSAC</span><span class="ttl">Actor + 2 Critics</span></div>
+        <div class="sub">Actor FC(512,128)→µ,σ · Critics FC(512,128)→Q · α auto-tune · τ=0.025 · RSAC adds LSTM(h=128)</div>
+        <span class="badge">From scratch</span>
+      </div>
+      <div class="tip">Clipped double-Q (min of Q1, Q2) suppresses overestimation. Entropy auto-tuning targets −action_dim. RSAC inserts LSTM(h=128) before output heads, processing T=16 step sequences.</div>
+    </div>
+
+    <div class="arrow"></div>
+
+    <div class="nw">
+      <div class="node n-act">
+        <div class="row"><span class="lbl">Output</span><span class="ttl">Continuous Actions</span></div>
+        <div class="sub">Steering: −15°→+15° · Engine force: 0.1→0.125 · tanh-squashed Gaussian</div>
+        <span class="badge">2-dim continuous</span>
+      </div>
+      <div class="tip">Sampled from squashed Gaussian during training (reparameterization trick). At eval, deterministic mean tanh(µ) gives stable performance — achieved 99.23% route completion.</div>
+    </div>
+
+    <div class="arrow"></div>
+
+    <div class="nw">
+      <div class="node n-rew">
+        <div class="row"><span class="lbl">Feedback</span><span class="ttl">Reward + Next Observation</span></div>
+        <div class="sub">+100 destination · +Δd progress · +0.5v speed · −10 off-road / sidewalk</div>
+        <span class="badge">→ Replay Buffer</span>
+      </div>
+      <div class="tip">Dense progress and speed rewards provide per-step signal. Sidewalk penalty prevents the failure mode where the agent drifts laterally before triggering the off-road terminal event.</div>
+    </div>
+
+  </div><!-- /pipeline -->
+
+  <div class="rsac-banner">
+    <div class="rb-lbl">RSAC<br>Extension</div>
+    <div class="rb-body">
+      In <strong>Recurrent SAC (RSAC)</strong>, an <strong>LSTM (h=128)</strong> is inserted between the fused feature and the actor/critic heads.
+      The flat replay buffer is replaced by an <strong>episode-based buffer</strong> sampling contiguous fragments of <strong>T=16 steps</strong>,
+      preserving the temporal coherence the LSTM requires. Built from scratch — not supported by standard RL libraries.
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="leg"><div class="leg-dot" style="background:#7B35CC"></div>Environment</div>
+    <div class="leg"><div class="leg-dot" style="background:#2563EB"></div>Sensors</div>
+    <div class="leg"><div class="leg-dot" style="background:#059669"></div>CNN Encoder</div>
+    <div class="leg"><div class="leg-dot" style="background:#D97706"></div>Fusion</div>
+    <div class="leg"><div class="leg-dot" style="background:#0284C7"></div>Policy (SAC/RSAC)</div>
+    <div class="leg"><div class="leg-dot" style="background:#9333EA"></div>Actions</div>
+    <div class="leg"><div class="leg-dot" style="background:#16a34a"></div>Reward/Feedback</div>
+    <div class="leg"><div class="leg-dot" style="background:#EA580C"></div>RSAC LSTM</div>
+  </div>
+</div>
+
+<script>
+let dark = true;
+function toggle() {
+  dark = !dark;
+  document.body.className = dark ? '' : 'light';
+  document.getElementById('tog').textContent = dark ? '🌙' : '☀️';
+}
+</script>
+</body>
+</html>

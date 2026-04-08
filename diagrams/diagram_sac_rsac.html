@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SARATHI — SAC vs RSAC Architecture</title>
+<style>
+body {
+  --bg:#0c0b09; --bg2:#1a1714; --bg3:#221f1b;
+  --ink:#f0ede6; --ink2:#b8b4aa; --ink3:#888580;
+  --bdr:rgba(255,255,255,.09); --sh:0 2px 10px rgba(0,0,0,.55);
+
+  --sac-bg:#0f1f2e; --sac-bd:#0284C7; --sac-h:#7dd3fc; --sac-s:#38bdf8;
+  --rs-bg:#2e0f1f;  --rs-bd:#DB2777;  --rs-h:#f9a8d4;  --rs-s:#ec4899;
+  --lstm-bg:#2e1507;--lstm-bd:#EA580C;--lstm-h:#fdba74; --lstm-s:#f97316;
+  --enc-bg:#0d261a; --enc-bd:#059669; --enc-h:#6ee7b7;  --enc-s:#34d399;
+  --fus-bg:#1f1a07; --fus-bd:#D97706; --fus-h:#fcd34d;  --fus-s:#f59e0b;
+  --act-bg:#1a0a1a; --act-bd:#9333EA; --act-h:#d8b4fe;  --act-s:#a855f7;
+  --buf-bg:#0e1f12; --buf-bd:#16a34a; --buf-h:#86efac;  --buf-s:#4ade80;
+
+  background:var(--bg); color:var(--ink);
+  font-family:'Segoe UI',system-ui,sans-serif;
+  margin:0; padding:16px 0 24px; min-width:800px;
+}
+body.light {
+  --bg:#f5f3ef; --bg2:#ffffff; --bg3:#eeebe5;
+  --ink:#1a1714; --ink2:#44403c; --ink3:#78716c;
+  --bdr:rgba(0,0,0,.10); --sh:0 2px 8px rgba(0,0,0,.12);
+  --sac-bg:#e0f2fe; --sac-bd:#0369a1; --sac-h:#075985; --sac-s:#0284c7;
+  --rs-bg:#fce7f3;  --rs-bd:#be185d;  --rs-h:#9d174d;  --rs-s:#db2777;
+  --lstm-bg:#ffedd5;--lstm-bd:#c2410c;--lstm-h:#9a3412;--lstm-s:#ea580c;
+  --enc-bg:#d1fae5; --enc-bd:#047857; --enc-h:#065f46; --enc-s:#059669;
+  --fus-bg:#fef3c7; --fus-bd:#b45309; --fus-h:#92400e; --fus-s:#d97706;
+  --act-bg:#f3e8ff; --act-bd:#7e22ce; --act-h:#581c87; --act-s:#9333ea;
+  --buf-bg:#dcfce7; --buf-bd:#15803d; --buf-h:#14532d; --buf-s:#16a34a;
+}
+
+.wrap { overflow-x:auto; padding:0 20px; }
+.title { text-align:center; font-size:13px; font-weight:700; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--ink3); margin-bottom:20px; }
+
+/* two-column grid */
+.compare { display:grid; grid-template-columns:1fr 1fr; gap:20px; min-width:760px; }
+
+/* column header */
+.col-head { border-radius:10px 10px 0 0; padding:12px 16px;
+  font-size:15px; font-weight:800; border:1.5px solid; border-bottom:none; }
+.col-sac { background:var(--sac-bg); border-color:var(--sac-bd); color:var(--sac-h); }
+.col-rs  { background:var(--rs-bg);  border-color:var(--rs-bd);  color:var(--rs-h);
+  box-shadow:0 0 18px rgba(219,39,119,.2); }
+
+/* column body */
+.col-body { border-radius:0 0 10px 10px; border:1.5px solid;
+  border-top:none; padding:14px 14px 16px; display:flex; flex-direction:column; gap:10px; }
+.col-body-sac { background:var(--bg2); border-color:var(--sac-bd); }
+.col-body-rs  { background:var(--bg2); border-color:var(--rs-bd); }
+
+/* layer row */
+.layer { border-radius:8px; padding:10px 12px; border:1.5px solid; position:relative; }
+.layer .name { font-size:12px; font-weight:700; margin-bottom:4px; }
+.layer .desc { font-size:10px; line-height:1.55; color:var(--ink2); }
+.layer .badge { display:inline-block; font-size:8px; font-weight:700;
+  letter-spacing:.1em; text-transform:uppercase; padding:2px 6px;
+  border-radius:4px; margin-top:5px; }
+
+.l-enc  { background:var(--enc-bg); border-color:var(--enc-bd); }
+.l-enc  .name { color:var(--enc-h); }
+.l-enc  .badge { background:var(--enc-bd); color:#fff; }
+
+.l-fus  { background:var(--fus-bg); border-color:var(--fus-bd); }
+.l-fus  .name { color:var(--fus-h); }
+.l-fus  .badge { background:var(--fus-bd); color:#fff; }
+
+.l-lstm { background:var(--lstm-bg); border-color:var(--lstm-bd);
+  box-shadow:0 0 14px rgba(234,88,12,.3); }
+.l-lstm .name { color:var(--lstm-h); }
+.l-lstm .badge { background:var(--lstm-bd); color:#fff; }
+
+.l-act  { background:var(--act-bg); border-color:var(--act-bd); }
+.l-act  .name { color:var(--act-h); }
+.l-act  .badge { background:var(--act-bd); color:#fff; }
+
+.l-buf  { background:var(--buf-bg); border-color:var(--buf-bd); }
+.l-buf  .name { color:var(--buf-h); }
+.l-buf  .badge { background:var(--buf-bd); color:#fff; }
+
+/* placeholder (shared layer) */
+.l-same { background:rgba(107,114,128,.07); border-color:rgba(107,114,128,.25); opacity:.75; }
+.l-same .name { color:var(--ink3); }
+
+/* NEW tag */
+.new-tag { display:inline-block; background:#DB2777; color:#fff;
+  font-size:8px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+  border-radius:4px; padding:2px 6px; margin-left:8px; vertical-align:middle; }
+
+/* buffer comparison */
+.buf-compare { display:grid; grid-template-columns:1fr 1fr; gap:12px;
+  margin-top:16px; }
+.buf-box { border-radius:10px; padding:12px 14px; border:1.5px solid; }
+.buf-box .lbl { font-size:9px; font-weight:700; letter-spacing:.14em;
+  text-transform:uppercase; margin-bottom:6px; }
+.buf-box .val { font-size:12px; color:var(--ink2); line-height:1.6; }
+.buf-box .val strong { color:var(--ink); }
+
+/* legend */
+.legend { display:flex; flex-wrap:wrap; gap:8px 18px;
+  margin:14px 0 0; padding:10px 14px;
+  background:var(--bg2); border:1px solid var(--bdr); border-radius:8px; }
+.leg { display:flex; align-items:center; gap:6px; font-size:10px; color:var(--ink2); }
+.leg-dot { width:9px; height:9px; border-radius:2px; flex-shrink:0; }
+
+#tog { position:fixed; top:14px; right:16px; width:34px; height:34px;
+  border-radius:50%; border:1.5px solid var(--bdr); background:var(--bg2);
+  color:var(--ink2); font-size:15px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:var(--sh); z-index:99; }
+</style>
+</head>
+<body>
+<button id="tog" onclick="toggle()">🌙</button>
+<div class="wrap">
+  <div class="title">Decision Layer — SAC vs RSAC Architecture Comparison</div>
+
+  <div class="compare">
+    <!-- SAC column -->
+    <div>
+      <div class="col-head col-sac">🎯 Soft Actor-Critic (SAC)</div>
+      <div class="col-body col-body-sac">
+        <div class="layer l-enc">
+          <div class="name">CNN Encoder (×3 instances)</div>
+          <div class="desc">Separate encoder per actor + per critic (×2). Gradient signals isolated — critic updates don't contaminate perception.</div>
+          <span class="badge">128-d per frame</span>
+        </div>
+        <div class="layer l-fus">
+          <div class="name">Feature Fusion</div>
+          <div class="desc">Concatenate left (128) + right (128) + nav (10) → 266-d fused vector. One vector per timestep.</div>
+          <span class="badge">266-d</span>
+        </div>
+        <div class="layer l-same">
+          <div class="name" style="color:var(--ink3)">⟨ no recurrence ⟩</div>
+          <div class="desc">Single fused vector fed directly to actor / critic heads. Each timestep processed independently.</div>
+        </div>
+        <div class="layer l-act">
+          <div class="name">Actor Head — FC(512, 128)</div>
+          <div class="desc">266 → 512 → 128 → [µ, log_σ] (2-d each). Squashed Gaussian + reparameterization trick. Inference: tanh(µ).</div>
+          <span class="badge">2-dim continuous output</span>
+        </div>
+        <div class="layer l-act" style="opacity:.8">
+          <div class="name">Critic Heads — FC(512, 128) × 2</div>
+          <div class="desc">[266-d state, 2-d action] → Q-value (scalar). Minimum of Q1, Q2 used in policy gradient (clipped double-Q).</div>
+          <span class="badge">scalar Q-value</span>
+        </div>
+        <div class="layer l-buf">
+          <div class="name">Replay Buffer — Flat Transitions</div>
+          <div class="desc">Stores (s, a, r, s', done) tuples. Random uniform sampling. Buffer size = 50 epochs × 50 batches = 2500 batches.</div>
+          <span class="badge">batch_size=128</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RSAC column -->
+    <div>
+      <div class="col-head col-rs">🔁 Recurrent SAC (RSAC) <span class="new-tag">Novel</span></div>
+      <div class="col-body col-body-rs">
+        <div class="layer l-enc">
+          <div class="name">CNN Encoder (×3 instances)</div>
+          <div class="desc">Identical to SAC. Runs on each frame in the sequence. Separate encoder instances per actor/critic.</div>
+          <span class="badge">128-d per frame</span>
+        </div>
+        <div class="layer l-fus">
+          <div class="name">Feature Fusion</div>
+          <div class="desc">Same concatenation. Produces 266-d vector at each timestep t in the sequence T. Shape: (T × 266).</div>
+          <span class="badge">T × 266-d sequence</span>
+        </div>
+        <div class="layer l-lstm" style="border-width:2px">
+          <div class="name">LSTM Layer <span class="new-tag">Added</span></div>
+          <div class="desc">Processes the T-step sequence of fused features. Hidden size h=128. Temporal context: T=16 steps. Hidden state initialized to zeros at sequence start.</div>
+          <span class="badge">h=128 · T=16</span>
+        </div>
+        <div class="layer l-act">
+          <div class="name">Actor Head — FC(h, h)</div>
+          <div class="desc">LSTM final hidden state (128-d) → [µ, log_σ]. Same squashed Gaussian policy. Same inference rule.</div>
+          <span class="badge">2-dim continuous output</span>
+        </div>
+        <div class="layer l-act" style="opacity:.8">
+          <div class="name">Critic Heads — FC(h, h) × 2</div>
+          <div class="desc">LSTM final hidden + action sequence → scalar Q. Same clipped double-Q. Same Polyak target update.</div>
+          <span class="badge">scalar Q-value</span>
+        </div>
+        <div class="layer l-buf" style="border-width:2px;box-shadow:0 0 12px rgba(22,163,74,.2)">
+          <div class="name">Replay Buffer — Episode-Based <span class="new-tag">Redesigned</span></div>
+          <div class="desc">Stores full episodes as lists of transitions. Samples contiguous fragments of length T=16. Ensures temporal coherence the LSTM relies on — not supported by standard RL libraries.</div>
+          <span class="badge">fragment sampling · T=16</span>
+        </div>
+      </div>
+    </div>
+  </div><!-- /compare -->
+
+  <!-- Entropy / shared mechanics -->
+  <div style="margin-top:16px;padding:12px 16px;background:var(--bg2);border:1px solid var(--bdr);border-radius:10px;font-size:11px;color:var(--ink2);line-height:1.6">
+    <strong style="color:var(--ink)">Shared mechanics (both SAC and RSAC):</strong>
+    Entropy auto-tuning — learnable log_α optimized against target entropy = −action_dim.
+    Polyak averaging for target critics: θ_target ← τ·θ + (1−τ)·θ_target, τ=0.025.
+    AdamW optimizer. γ=0.99. Actor and critics updated every training step.
+  </div>
+
+  <div class="legend">
+    <div class="leg"><div class="leg-dot" style="background:#059669"></div>CNN Encoder (shared design)</div>
+    <div class="leg"><div class="leg-dot" style="background:#D97706"></div>Feature Fusion</div>
+    <div class="leg"><div class="leg-dot" style="background:#EA580C"></div>LSTM (RSAC only)</div>
+    <div class="leg"><div class="leg-dot" style="background:#9333EA"></div>Actor / Critic heads</div>
+    <div class="leg"><div class="leg-dot" style="background:#16a34a"></div>Replay buffer</div>
+    <div class="leg"><div class="leg-dot" style="background:#DB2777"></div>RSAC novel components</div>
+  </div>
+</div>
+
+<script>
+let dark = true;
+function toggle() {
+  dark = !dark;
+  document.body.className = dark ? '' : 'light';
+  document.getElementById('tog').textContent = dark ? '🌙' : '☀️';
+}
+</script>
+</body>
+</html>
