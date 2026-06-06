@@ -278,5 +278,24 @@ document.querySelectorAll('[data-tip]').forEach(el => {
   el.addEventListener('mouseleave', () => { tp.style.display = 'none'; });
 });
 </script>
+
+<script>
+(function(){
+  function sendHeight(){
+    var h = Math.max(
+      document.body.scrollHeight,
+      document.documentElement.scrollHeight
+    );
+    window.parent.postMessage({ type:'iframeResize', h:h }, '*');
+  }
+  // Fire after load + short delay (handles JS-rendered SVG content)
+  window.addEventListener('load', function(){ setTimeout(sendHeight, 150); });
+  // Re-fire on any layout change (theme toggle, tooltip open, window resize)
+  if(window.ResizeObserver){
+    new ResizeObserver(sendHeight).observe(document.documentElement);
+  }
+})();
+</script>
+
 </body>
 </html>
