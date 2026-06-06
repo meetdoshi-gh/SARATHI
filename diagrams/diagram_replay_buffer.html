@@ -328,19 +328,31 @@ document.querySelectorAll('[data-tip]').forEach(el => {
 
 <script>
 (function(){
-  function sendHeight(){
-    // Measure the wrapper div — correctly shrinks with SVG, grows with legend wrapping
-    var wrapper = document.querySelector('.wrap') ||
-                  document.body.firstElementChild ||
-                  document.body;
-    var bs = window.getComputedStyle(document.body);
-    var bodyPad = (parseFloat(bs.paddingTop)||0) + (parseFloat(bs.paddingBottom)||0);
-    var h = wrapper.getBoundingClientRect().height + bodyPad;
-    window.parent.postMessage({type:'iframeResize', h: Math.ceil(h) + 4}, '*');
+  function updateAll(){
+    var svg = document.querySelector('svg');
+
+    // Scale legend proportionally to SVG shrinkage
+    if(svg && svg.viewBox && svg.viewBox.baseVal.width > 0){
+      var vbW = svg.viewBox.baseVal.width;
+      var renderedW = svg.getBoundingClientRect().width;
+      if(renderedW > 0){
+        var scale = Math.min(1, renderedW / vbW);
+        var lgd = document.querySelector('.lgd') || svg.nextElementSibling;
+        if(lgd){
+          lgd.style.fontSize = Math.max(8, 11 * scale).toFixed(1) + 'px';
+          lgd.style.gap      = Math.max(6, 14 * scale).toFixed(1) + 'px';
+        }
+      }
+    }
+
+    // body.scrollHeight shrinks correctly on resize
+    // documentElement.scrollHeight does NOT (it fills iframe viewport) — never use it
+    window.parent.postMessage({type:'iframeResize', h: document.body.scrollHeight + 4}, '*');
   }
-  window.addEventListener('load', function(){ setTimeout(sendHeight, 150); });
+
+  window.addEventListener('load', function(){ setTimeout(updateAll, 150); });
   if(window.ResizeObserver){
-    new ResizeObserver(sendHeight).observe(document.documentElement);
+    new ResizeObserver(updateAll).observe(document.documentElement);
   }
 })();
 </script>
