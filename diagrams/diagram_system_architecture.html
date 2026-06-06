@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SARATHI — System Architecture</title>
+<style>
+html{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.18) transparent}
+::-webkit-scrollbar{width:7px;height:7px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.28)}
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Mono:wght@400;500&display=swap');
+body{
+  margin:0;padding:28px 20px;font-family:'DM Mono',monospace;
+  background:var(--bg);color:var(--ink);transition:background .3s,color .3s;
+  --bg:#0c0b09;--bg2:#161410;--bg3:#1e1c19;
+  --ink:#f0ede6;--ink2:#b8b4aa;--ink3:#888580;--bdr:rgba(255,255,255,.09);--sh:0 4px 20px rgba(0,0,0,.6);
+  /* Layer colors */
+  --env-c:#0a1520;--env-b:#0EA5E9;--env-h:#7DD3FC;--env-s:#38BDF8;
+  --cam-c:#0d1524;--cam-b:#3B82F6;--cam-h:#93c5fd;--cam-s:#60a5fa;
+  --enc-c:#1a0e24;--enc-b:#A855F7;--enc-h:#d8b4fe;--enc-s:#c084fc;
+  --fus-c:#1f1208;--fus-b:#F97316;--fus-h:#fdba74;--fus-s:#fb923c;
+  --pol-sac:#1a0a08;--pol-sacb:#EF4444;--pol-sach:#fca5a5;--pol-sacs:#f87171;
+  --pol-rs:#1a0e24;--pol-rsb:#A855F7;--pol-rsh:#d8b4fe;--pol-rss:#c084fc;
+  --crt-c:#1c180a;--crt-b:#EAB308;--crt-h:#fde047;--crt-s:#facc15;
+  --act-c:#0e1f12;--act-b:#22C55E;--act-h:#86efac;--act-s:#4ade80;
+  --buf-c:#1f1a08;--buf-b:#D97706;--buf-h:#fcd34d;--buf-s:#f59e0b;
+}
+body.light{
+  --bg:#f4f2ee;--bg2:#fff;--bg3:#ebe8e2;--ink:#1a1714;--ink2:#44403c;--ink3:#78716c;--bdr:rgba(0,0,0,.10);--sh:0 4px 20px rgba(0,0,0,.12);
+  --env-c:#e0f2fe;--env-b:#0284C7;--env-h:#0c4a6e;--env-s:#0369A1;
+  --cam-c:#dbeafe;--cam-b:#1D4ED8;--cam-h:#1e3a8a;--cam-s:#2563EB;
+  --enc-c:#f3e8ff;--enc-b:#7E22CE;--enc-h:#4c1d95;--enc-s:#7C3AED;
+  --fus-c:#fff7ed;--fus-b:#C2410C;--fus-h:#7c2d12;--fus-s:#EA580C;
+  --pol-sac:#fee2e2;--pol-sacb:#B91C1C;--pol-sach:#7f1d1d;--pol-sacs:#DC2626;
+  --pol-rs:#f3e8ff;--pol-rsb:#7E22CE;--pol-rsh:#4c1d95;--pol-rss:#7C3AED;
+  --crt-c:#fefce8;--crt-b:#A16207;--crt-h:#713f12;--crt-s:#CA8A04;
+  --act-c:#dcfce7;--act-b:#15803D;--act-h:#14532d;--act-s:#16A34A;
+  --buf-c:#fffbeb;--buf-b:#B45309;--buf-h:#78350f;--buf-s:#D97706;
+}
+.tg{position:fixed;top:16px;right:16px;z-index:200;width:38px;height:38px;border-radius:50%;background:var(--bg2);border:1px solid var(--bdr);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:var(--sh);transition:transform .15s}
+.tg:hover{transform:scale(1.1)}
+.wrap{width:100%;max-width:1140px;margin:0 auto}
+.hdg{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin:0 0 4px;color:var(--ink)}
+.sub{font-size:11px;color:var(--ink3);letter-spacing:.14em;text-transform:uppercase;margin:0 0 22px}
+text{font-family:'DM Mono',monospace}
+.nl{font-size:10px;letter-spacing:.16em;text-transform:uppercase}
+.nt{font-family:'Syne',sans-serif;font-size:13px;font-weight:700}
+.ns{font-size:10.5px}.nd{font-size:9px;opacity:.8}
+.nb{stroke-width:1.5;transition:filter .2s}
+g[data-tip]{cursor:default}
+g[data-tip]:hover .nb{filter:brightness(1.22)}
+#tp{display:none;position:fixed;max-width:265px;background:var(--bg2);border:1px solid var(--bdr);border-radius:9px;padding:10px 13px;font-size:10.5px;color:var(--ink2);line-height:1.75;z-index:300;pointer-events:none;word-break:break-word;box-shadow:0 8px 32px rgba(0,0,0,.55)}
+.lgd{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding-top:12px;margin-top:14px;border-top:1px solid var(--bdr);font-size:11px;color:var(--ink3)}
+.lgd-dot{width:9px;height:9px;border-radius:2px}
+</style>
+</head>
+<body>
+<button class="tg" onclick="toggle()" aria-label="Toggle theme">🌙</button>
+<div class="wrap">
+  <h1 class="hdg">SARATHI — System Architecture</h1>
+  <p class="sub">Vision → Encoding → Policy (SAC | RSAC) → Action → Environment → Reward → Training loop</p>
+
+<svg viewBox="0 0 1140 660" width="100%" xmlns="http://www.w3.org/2000/svg" style="display:block;min-width:800px">
+<defs>
+  <marker id="arr" markerWidth="9" markerHeight="9" refX="5" refY="4.5" orient="auto">
+    <path d="M1.5,1.5 L7.5,4.5 L1.5,7.5" fill="none" stroke="#888580" stroke-width="1.6"/>
+  </marker>
+  <marker id="arr-e" markerWidth="9" markerHeight="9" refX="5" refY="4.5" orient="auto">
+    <path d="M1.5,1.5 L7.5,4.5 L1.5,7.5" fill="none" stroke="#38BDF8" stroke-width="1.6"/>
+  </marker>
+  <marker id="arr-c" markerWidth="9" markerHeight="9" refX="5" refY="4.5" orient="auto">
+    <path d="M1.5,1.5 L7.5,4.5 L1.5,7.5" fill="none" stroke="#60a5fa" stroke-width="1.6"/>
+  </marker>
+  <marker id="arr-p" markerWidth="9" markerHeight="9" refX="5" refY="4.5" orient="auto">
+    <path d="M1.5,1.5 L7.5,4.5 L1.5,7.5" fill="none" stroke="#c084fc" stroke-width="1.6"/>
+  </marker>
+  <marker id="arr-g" markerWidth="9" markerHeight="9" refX="5" refY="4.5" orient="auto">
+    <path d="M1.5,1.5 L7.5,4.5 L1.5,7.5" fill="none" stroke="#4ade80" stroke-width="1.6"/>
+  </marker>
+  <marker id="arr-y" markerWidth="9" markerHeight="9" refX="5" refY="4.5" orient="auto">
+    <path d="M1.5,1.5 L7.5,4.5 L1.5,7.5" fill="none" stroke="#facc15" stroke-width="1.6"/>
+  </marker>
+  <filter id="glow"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <linearGradient id="grd" x1="0%" y1="0%" x2="100%" y2="0%">
+    <stop offset="0%" stop-color="#A257DF"/><stop offset="100%" stop-color="#F66934"/>
+  </linearGradient>
+</defs>
+
+<!-- ══ LAYER 0: MetaDrive Environment ══ -->
+<g data-tip="MetaDrive physics simulator: lightweight, customizable driving environment. Single procedurally generated 3-block map, zero traffic, deterministic evaluation seed. Provides stereo camera observations and reward signal at each step.">
+  <rect class="nb" x="36" y="270" width="104" height="100" rx="10" fill="var(--env-c)" stroke="var(--env-b)" stroke-width="2"/>
+  <text class="nl" fill="var(--env-s)" x="88" y="294" text-anchor="middle">ENVIRONMENT</text>
+  <text class="nt" fill="var(--env-h)" x="88" y="315" text-anchor="middle">MetaDrive</text>
+  <text class="nd" fill="var(--env-s)" x="88" y="334" text-anchor="middle">MetaDriveEnv</text>
+  <text class="nd" fill="var(--env-s)" x="88" y="350" text-anchor="middle">+StereoObs</text>
+</g>
+
+<!-- ══ LAYER 1: Sensors ══ -->
+<!-- Left camera -->
+<g data-tip="Left RGB camera: 120×160 grayscale, 65° FOV. Mounted at (-0.2m, 0.225m, 0.55m). Rendered at physics step 0.02s × 5 decision repeats = 0.1s per observation.">
+  <rect class="nb" x="168" y="240" width="120" height="58" rx="8" fill="var(--cam-c)" stroke="var(--cam-b)"/>
+  <text class="nl" fill="var(--cam-s)" x="228" y="260" text-anchor="middle">LEFT CAM</text>
+  <text class="nt" fill="var(--cam-h)" x="228" y="280" text-anchor="middle">120×160 gray</text>
+  <text class="nd" fill="var(--cam-s)" x="228" y="295" text-anchor="middle">65° FOV</text>
+</g>
+<!-- Right camera -->
+<g data-tip="Right RGB camera: identical config to left, offset to (+0.2m, 0.225m, 0.55m). HPR heading [−3,5,0] provides slight inward toe-in matching automotive stereo convention.">
+  <rect class="nb" x="168" y="322" width="120" height="58" rx="8" fill="var(--cam-c)" stroke="var(--cam-b)"/>
+  <text class="nl" fill="var(--cam-s)" x="228" y="342" text-anchor="middle">RIGHT CAM</text>
+  <text class="nt" fill="var(--cam-h)" x="228" y="362" text-anchor="middle">120×160 gray</text>
+  <text class="nd" fill="var(--cam-s)" x="228" y="377" text-anchor="middle">65° FOV</text>
+</g>
+<!-- Nav vector -->
+<g data-tip="Navigation vector: 10-dimensional bearing/distance info to next checkpoint from NavigationModule. Provides goal-directed bias without encoding any proprioceptive state.">
+  <rect class="nb" x="168" y="404" width="120" height="50" rx="8" fill="var(--cam-c)" stroke="var(--cam-b)" stroke-width="1" stroke-dasharray="4 2"/>
+  <text class="nl" fill="var(--cam-s)" x="228" y="424" text-anchor="middle">NAV VECTOR</text>
+  <text class="nt" fill="var(--cam-h)" x="228" y="444" text-anchor="middle">ℝ^10</text>
+</g>
+
+<!-- arrows env → sensors -->
+<line x1="140" y1="300" x2="168" y2="269" stroke="var(--env-b)" stroke-width="1.2" marker-end="url(#arr-e)"/>
+<line x1="140" y1="320" x2="168" y2="340" stroke="var(--env-b)" stroke-width="1.2" marker-end="url(#arr-e)"/>
+<line x1="140" y1="340" x2="168" y2="425" stroke="var(--env-b)" stroke-width="1.2" marker-end="url(#arr-e)"/>
+
+<!-- ══ LAYER 2: CNN Encoder ══ -->
+<!-- Left encoder -->
+<g data-tip="CNN encoder for left frame: 3 × (Conv3×3 + GroupNorm + MaxPool2×2). Spatial compression: 120×160 → 60×80 → 30×40 → 15×20. Flatten → compact feature vector f_left.">
+  <rect class="nb" x="316" y="226" width="136" height="72" rx="9" fill="var(--enc-c)" stroke="var(--enc-b)"/>
+  <text class="nl" fill="var(--enc-s)" x="384" y="248" text-anchor="middle">CNN ENCODER</text>
+  <text class="nt" fill="var(--enc-h)" x="384" y="270" text-anchor="middle">3-block GroupNorm</text>
+  <text class="nd" fill="var(--enc-s)" x="384" y="288" text-anchor="middle">f_left ∈ ℝ^d</text>
+</g>
+<!-- Right encoder -->
+<g data-tip="Identical CNN encoder for right frame — shared architecture (separate weights or weight-sharing possible). Output f_right ∈ ℝ^d at the same dimensionality as f_left.">
+  <rect class="nb" x="316" y="318" width="136" height="72" rx="9" fill="var(--enc-c)" stroke="var(--enc-b)"/>
+  <text class="nl" fill="var(--enc-s)" x="384" y="340" text-anchor="middle">CNN ENCODER</text>
+  <text class="nt" fill="var(--enc-h)" x="384" y="362" text-anchor="middle">3-block GroupNorm</text>
+  <text class="nd" fill="var(--enc-s)" x="384" y="378" text-anchor="middle">f_right ∈ ℝ^d</text>
+</g>
+
+<!-- arrows cameras → encoders -->
+<line x1="288" y1="265" x2="316" y2="262" stroke="var(--cam-b)" stroke-width="1.4" marker-end="url(#arr-c)"/>
+<line x1="288" y1="347" x2="316" y2="352" stroke="var(--cam-b)" stroke-width="1.4" marker-end="url(#arr-c)"/>
+
+<!-- ══ LAYER 3: Fusion ══ -->
+<g data-tip="Feature fusion: concatenate [f_left ‖ f_right ‖ nav_t] → fused ∈ ℝ^(2d+10). Single vector fed to both actor and critics (separate parameters). In RSAC, fused is treated as a sequence of shape (B,T,2d+10) before the LSTM.">
+  <rect class="nb" x="480" y="278" width="136" height="80" rx="10" fill="var(--fus-c)" stroke="var(--fus-b)" stroke-width="1.8"/>
+  <text class="nl" fill="var(--fus-s)" x="548" y="300" text-anchor="middle">FUSION</text>
+  <text class="nt" fill="var(--fus-h)" x="548" y="322" text-anchor="middle">[f_L ‖ f_R ‖ nav]</text>
+  <text class="nd" fill="var(--fus-s)" x="548" y="340" text-anchor="middle">fused ∈ ℝ^(2d+10)</text>
+</g>
+
+<!-- arrows encoder → fusion -->
+<line x1="452" y1="262" x2="480" y2="300" stroke="var(--enc-b)" stroke-width="1.4" marker-end="url(#arr)"/>
+<line x1="452" y1="354" x2="480" y2="338" stroke="var(--enc-b)" stroke-width="1.4" marker-end="url(#arr)"/>
+<!-- nav → fusion -->
+<path d="M288,428 Q400,428 480,340" fill="none" stroke="var(--cam-b)" stroke-width="1.2" stroke-dasharray="4 2" marker-end="url(#arr)"/>
+
+<!-- ══ SAC path (top) ══ -->
+<!-- Label -->
+<text font-family="Syne,sans-serif" font-size="13" font-weight="700" fill="var(--pol-sach)" x="660" y="195">SAC Path</text>
+<text class="nd" fill="var(--pol-sacs)" x="660" y="210">feedforward · memoryless</text>
+
+<!-- SAC actor -->
+<g data-tip="SAC actor: feedforward MLP (512→128→ReLU). Outputs mean μ and log-std σ for a Gaussian distribution. Uses reparameterization sampling (rsample) with tanh squashing and Jacobian log-prob correction.">
+  <rect class="nb" x="650" y="216" width="148" height="68" rx="9" fill="var(--pol-sac)" stroke="var(--pol-sacb)"/>
+  <text class="nl" fill="var(--pol-sacs)" x="724" y="238" text-anchor="middle">SAC ACTOR</text>
+  <text class="nt" fill="var(--pol-sach)" x="724" y="258" text-anchor="middle">MLP(512,128)</text>
+  <text class="nd" fill="var(--pol-sacs)" x="724" y="274" text-anchor="middle">→ (μ, σ) → tanh</text>
+</g>
+
+<!-- ══ RSAC path (bottom) ══ -->
+<text font-family="Syne,sans-serif" font-size="13" font-weight="700" fill="var(--pol-rsh)" x="660" y="376">RSAC Path</text>
+<text class="nd" fill="var(--pol-rss)" x="660" y="391">recurrent · belief state</text>
+
+<!-- RSAC LSTM (glow) -->
+<g data-tip="RSAC LSTM: input_size=fused_dim, hidden_size=128, num_layers=1, batch_first=True. Processes (B,T,fused_dim) sequences. At inference, hidden state (h_t, c_t) carried forward across steps — implicit belief over velocity/heading." filter="url(#glow)">
+  <rect class="nb" x="650" y="396" width="148" height="68" rx="9" fill="var(--pol-rs)" stroke="var(--pol-rsb)" stroke-width="2.2"/>
+  <text class="nl" fill="var(--pol-rss)" x="724" y="418" text-anchor="middle">★ LSTM (h=128)</text>
+  <text class="nt" fill="var(--pol-rsh)" x="724" y="438" text-anchor="middle">h_t = f(enc, h_{t-1})</text>
+  <text class="nd" fill="var(--pol-rss)" x="724" y="454" text-anchor="middle">belief state</text>
+</g>
+
+<!-- RSAC fc after LSTM -->
+<g data-tip="Linear(128→128) + ReLU after the LSTM output, before (μ, σ) heads. Mirrors the SAC actor MLP output dimension for fair comparison.">
+  <rect class="nb" x="650" y="480" width="148" height="54" rx="9" fill="var(--pol-sac)" stroke="var(--pol-sacb)"/>
+  <text class="nl" fill="var(--pol-sacs)" x="724" y="500" text-anchor="middle">LINEAR + TANH</text>
+  <text class="nt" fill="var(--pol-sach)" x="724" y="520" text-anchor="middle">→ (μ, σ) → action</text>
+</g>
+
+<!-- fusion → SAC and RSAC arrows -->
+<path d="M616,300 Q634,250 650,250" fill="none" stroke="var(--fus-b)" stroke-width="1.4" marker-end="url(#arr)"/>
+<path d="M616,318 Q634,430 650,430" fill="none" stroke="var(--fus-b)" stroke-width="1.4" marker-end="url(#arr)"/>
+
+<!-- LSTM → fc arrow -->
+<line x1="724" y1="464" x2="724" y2="480" stroke="var(--pol-rsb)" stroke-width="1.4" marker-end="url(#arr-p)"/>
+
+<!-- ══ LAYER 5: Actions ══ -->
+<!-- SAC action -->
+<g data-tip="Action: [δ ∈ [-15°,15°], F ∈ [0.1,0.125]] — continuous steering angle and engine force. Rescaled from tanh([-1,1]) to physical bounds using preregistered action_min/action_max buffers.">
+  <rect class="nb" x="830" y="224" width="130" height="56" rx="9" fill="var(--act-c)" stroke="var(--act-b)"/>
+  <text class="nl" fill="var(--act-s)" x="895" y="245" text-anchor="middle">ACTION</text>
+  <text class="nt" fill="var(--act-h)" x="895" y="265" text-anchor="middle">[δ, F_engine]</text>
+</g>
+<!-- RSAC action -->
+<g data-tip="Same action structure as SAC — delta steering and engine force. In RSAC, the action is taken from the last timestep of the output sequence during inference.">
+  <rect class="nb" x="830" y="490" width="130" height="54" rx="9" fill="var(--act-c)" stroke="var(--act-b)"/>
+  <text class="nl" fill="var(--act-s)" x="895" y="511" text-anchor="middle">ACTION</text>
+  <text class="nt" fill="var(--act-h)" x="895" y="530" text-anchor="middle">[δ, F_engine]</text>
+</g>
+
+<!-- actor → action arrows -->
+<line x1="798" y1="250" x2="830" y2="250" stroke="var(--act-b)" stroke-width="1.4" marker-end="url(#arr-g)"/>
+<line x1="798" y1="507" x2="830" y2="514" stroke="var(--act-b)" stroke-width="1.4" marker-end="url(#arr-g)"/>
+
+<!-- action → env feedback: right perimeter + bottom rail, no crossing through diagram -->
+<!-- SAC exits right to x=1082, drops to junction -->
+<path d="M960,252 L1082,252 L1082,390" fill="none" stroke="var(--act-b)" stroke-width="1.2"/>
+<!-- RSAC exits right to x=1090, drops to same junction -->
+<path d="M960,517 L1090,517 L1090,390" fill="none" stroke="var(--act-b)" stroke-width="1.2" stroke-dasharray="5 3"/>
+<!-- Junction dot -->
+<circle cx="1086" cy="390" r="4" fill="var(--act-b)" opacity=".85"/>
+<!-- Label in right margin -->
+<rect x="1022" y="432" width="72" height="20" rx="4" fill="var(--bg2)" stroke="var(--act-b)" stroke-width="0.7"/>
+<text class="nd" fill="var(--act-h)" x="1058" y="446" text-anchor="middle">→ env step</text>
+<!-- Combined return: below all content at y=638, arrives at env box bottom -->
+<path d="M1086,390 L1104,390 L1104,638 L88,638 L88,370" fill="none" stroke="var(--act-b)" stroke-width="1.2" marker-end="url(#arr-g)"/>
+
+<!-- ══ Critics (shared across SAC/RSAC) ══ -->
+<g data-tip="Double critic: two independent Q-networks (Q1, Q2) with identical architecture to actor but taking action as additional input: cat(fused, action) → linear layers → scalar Q-value. Clipped Q used for Bellman target: min(Q1_target, Q2_target).">
+  <rect class="nb" x="480" y="56" width="140" height="76" rx="9" fill="var(--crt-c)" stroke="var(--crt-b)"/>
+  <text class="nl" fill="var(--crt-s)" x="550" y="78" text-anchor="middle">CRITICS Q1, Q2</text>
+  <text class="nt" fill="var(--crt-h)" x="550" y="98" text-anchor="middle">min(Q1,Q2)</text>
+  <text class="nd" fill="var(--crt-s)" x="550" y="115" text-anchor="middle">+ target Q1', Q2'</text>
+</g>
+<!-- Replay buffer -->
+<g data-tip="SAC: standard transition buffer (deque of individual tuples). RSAC: episode-indexed sequence buffer (deque of episodes, T-step contiguous fragment sampling). Both share the same logical role — source of off-policy training data.">
+  <rect class="nb" x="480" y="488" width="140" height="76" rx="9" fill="var(--buf-c)" stroke="var(--buf-b)"/>
+  <text class="nl" fill="var(--buf-s)" x="550" y="510" text-anchor="middle">REPLAY BUFFER</text>
+  <text class="nt" fill="var(--buf-h)" x="550" y="530" text-anchor="middle">SAC: transitions</text>
+  <text class="nd" fill="var(--buf-s)" x="550" y="547" text-anchor="middle">RSAC: episodes + T-seq</text>
+</g>
+
+<!-- fused → critics (upward) -->
+<path d="M548,278 Q548,200 548,132" fill="none" stroke="var(--crt-b)" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#arr-y)"/>
+<!-- env reward → replay buffer — separate rail at y=618, no overlap with action path -->
+<path d="M88,370 L62,370 L62,618 L550,618 L550,564" fill="none" stroke="var(--buf-b)" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#arr-y)"/>
+<!-- replay → critics -->
+<line x1="550" y1="488" x2="550" y2="132" stroke="var(--buf-b)" stroke-width=".7" opacity=".3"/>
+<!-- reward label -->
+<text class="nd" fill="var(--buf-s)" x="310" y="614">reward → buffer</text>
+
+<!-- Title section labels -->
+<text class="nd" fill="var(--ink3)" x="36" y="390">① Env</text>
+<text class="nd" fill="var(--ink3)" x="168" y="218">② Sensors</text>
+<text class="nd" fill="var(--ink3)" x="316" y="218">③ Encoder</text>
+<text class="nd" fill="var(--ink3)" x="480" y="268">④ Fusion</text>
+<text class="nd" fill="var(--ink3)" x="650" y="202">⑤ Policy</text>
+<text class="nd" fill="var(--ink3)" x="830" y="212">⑥ Action</text>
+</svg>
+
+<div class="lgd">
+  <div style="display:flex;align-items:center;gap:6px"><div class="lgd-dot" style="background:#0EA5E9"></div>Environment</div>
+  <div style="display:flex;align-items:center;gap:6px"><div class="lgd-dot" style="background:#3B82F6"></div>Sensors / fusion input</div>
+  <div style="display:flex;align-items:center;gap:6px"><div class="lgd-dot" style="background:#A855F7"></div>CNN encoder</div>
+  <div style="display:flex;align-items:center;gap:6px"><div class="lgd-dot" style="background:#F97316"></div>Feature fusion</div>
+  <div style="display:flex;align-items:center;gap:6px"><div class="lgd-dot" style="background:#EF4444"></div>SAC policy</div>
+  <div style="display:flex;align-items:center;gap:6px"><div class="lgd-dot" style="background:#A855F7"></div>★ RSAC LSTM (novel)</div>
+  <div style="display:flex;align-items:center;gap:6px"><div class="lgd-dot" style="background:#22C55E"></div>Action output</div>
+  <div style="display:flex;align-items:center;gap:6px"><div class="lgd-dot" style="background:#EAB308"></div>Critics / training</div>
+  <span style="margin-left:auto;font-size:9px;color:var(--ink3)">meetdoshi.me · SARATHI</span>
+</div>
+</div>
+<div id="tp"></div>
+<script>
+let dark=true;
+function toggle(){dark=!dark;document.body.className=dark?'':'light';document.querySelector('.tg').textContent=dark?'🌙':'☀️'}
+const tp=document.getElementById('tp'),PAD=14;
+document.querySelectorAll('[data-tip]').forEach(el=>{
+  el.addEventListener('mouseenter',()=>{tp.textContent=el.dataset.tip;tp.style.display='block'});
+  el.addEventListener('mousemove',e=>{
+    const tw=tp.offsetWidth,th=tp.offsetHeight,vw=window.innerWidth,vh=window.innerHeight;
+    let l=e.clientX+PAD,t=e.clientY-th-PAD;
+    if(l+tw>vw-8)l=e.clientX-tw-PAD;if(t<8)t=e.clientY+PAD;
+    tp.style.left=Math.max(8,Math.min(l,vw-tw-8))+'px';tp.style.top=Math.max(8,Math.min(t,vh-th-8))+'px';
+  });
+  el.addEventListener('mouseleave',()=>{tp.style.display='none'});
+});
+</script>
+</body>
+</html>

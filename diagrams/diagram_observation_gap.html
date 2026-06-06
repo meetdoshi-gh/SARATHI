@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SARATHI — POMDP Observation Gap</title>
+<style>
+html { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,.15); border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: rgba(255,255,255,.3); }
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@600;700;800&family=DM+Mono:wght@400;500&display=swap');
+
+body {
+  margin: 0; padding: 28px 24px;
+  background: var(--bg); color: var(--ink);
+  font-family: 'Inter', system-ui, sans-serif;
+  transition: background .3s, color .3s;
+
+  --bg: #0c0b09; --bg2: #1a1714;
+  --ink: #f0ede6; --ink2: #b8b4aa; --ink3: #888580;
+  --bdr: rgba(255,255,255,.10);
+  --sh: 0 2px 8px rgba(0,0,0,.6);
+
+  /* Two functional groups: typical (slate) vs SARATHI POMDP (cam + striked) */
+  --typ-bg: #131316; --typ-bd: #6B7280; --typ-h: #d1d5db; --typ-s: #9ca3af;
+  --kept-bg: #0d1a2e; --kept-bd: #2563EB; --kept-h: #93c5fd; --kept-s: #60a5fa;
+  --rem-bg: #2a0d12; --rem-bd: #DC2626; --rem-h: #fca5a5; --rem-s: #f87171;
+  --eq-bg: #1f1a07; --eq-bd: #D97706; --eq-h: #fcd34d; --eq-s: #f59e0b;
+}
+body.light {
+  --bg: #f5f3ef; --bg2: #ffffff;
+  --ink: #1a1714; --ink2: #44403c; --ink3: #78716c;
+  --bdr: rgba(0,0,0,.12);
+  --sh: 0 2px 8px rgba(0,0,0,.10);
+
+  --typ-bg: #f3f4f6; --typ-bd: #4B5563; --typ-h: #1f2937; --typ-s: #6B7280;
+  --kept-bg: #dbeafe; --kept-bd: #1D4ED8; --kept-h: #1e3a8a; --kept-s: #2563EB;
+  --rem-bg: #fee2e2; --rem-bd: #B91C1C; --rem-h: #7f1d1d; --rem-s: #DC2626;
+  --eq-bg: #fef3c7; --eq-bd: #B45309; --eq-h: #78350f; --eq-s: #D97706;
+}
+
+.tg { position: fixed; top: 16px; right: 16px; z-index: 100; width: 36px; height: 36px; border-radius: 50%; background: var(--bg2); border: 1px solid var(--bdr); cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; box-shadow: var(--sh); transition: transform .15s; }
+.tg:hover { transform: scale(1.08); }
+
+.title { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 800; margin: 0 0 6px 0; color: var(--ink); }
+.subtitle { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--ink3); margin: 0 0 24px 0; letter-spacing: .12em; text-transform: uppercase; }
+
+.nb { stroke-width: 1.5; transition: filter .2s; }
+.nb-typ  { fill: var(--typ-bg);  stroke: var(--typ-bd);  }
+.nb-kept { fill: var(--kept-bg); stroke: var(--kept-bd); }
+.nb-rem  { fill: var(--rem-bg);  stroke: var(--rem-bd); stroke-dasharray: 5 3; opacity: .85; }
+.nb-eq   { fill: var(--eq-bg);   stroke: var(--eq-bd);   }
+
+text { font-family: 'DM Mono', monospace; }
+.col-title { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; }
+.nl { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; font-weight: 500; }
+.nt { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; }
+.ns { font-size: 11px; }
+.struck { text-decoration: line-through; opacity: .75; }
+
+.tl-typ { fill: var(--typ-s); }   .tt-typ  { fill: var(--typ-h); }
+.tl-kept{ fill: var(--kept-s); }  .tt-kept { fill: var(--kept-h); }
+.tl-rem { fill: var(--rem-s); }   .tt-rem  { fill: var(--rem-h); }
+.tl-eq  { fill: var(--eq-s); }    .tt-eq   { fill: var(--eq-h); }
+
+g[data-tip] { cursor: default; }
+g[data-tip]:hover .nb { filter: brightness(1.18); }
+</style>
+</head>
+<body>
+
+<button class="tg" onclick="tt()" aria-label="Toggle theme">🌙</button>
+
+<div style="width:100%;max-width:1200px;margin:0 auto;">
+  <h1 class="title">Observation Gap — Typical RL vs SARATHI POMDP</h1>
+  <p class="subtitle">Why this is a hard problem: most published vision-driving leaks privileged state · we removed it</p>
+
+  <svg viewBox="0 0 1200 598" width="100%" style="display:block;" xmlns="http://www.w3.org/2000/svg">
+
+    <!-- Column dividers -->
+    <line x1="600" y1="60" x2="600" y2="450" stroke="var(--bdr)" stroke-width="1" stroke-dasharray="2 4"/>
+
+    <!-- ═══ LEFT COLUMN: Typical formulation ═══ -->
+    <text class="col-title tt-typ" x="40" y="40">Typical Vision-RL Formulation</text>
+    <text class="ns tl-typ" x="40" y="58">Privileged state available — easier MDP</text>
+
+    <g data-tip="Many published vision-RL drivers use a top-down or bird's-eye view, which makes the problem closer to a classical MDP — the agent sees relative positions directly and doesn't need to infer them.">
+      <rect class="nb nb-typ" x="40" y="80" width="240" height="56" rx="8"/>
+      <text class="nl tl-typ" x="58" y="100">VIEW</text>
+      <text class="nt tt-typ" x="58" y="120">Top-down / bird's-eye</text>
+    </g>
+
+    <g data-tip="Speed of the ego-vehicle. Typically passed in directly as a scalar feature alongside vision input. Eliminates the need to infer it from frame-to-frame pixel differences.">
+      <rect class="nb nb-typ" x="40" y="148" width="240" height="46" rx="8"/>
+      <text class="nl tl-typ" x="58" y="168">PROPRIOCEPTION</text>
+      <text class="nt tt-typ" x="58" y="186">Speed</text>
+    </g>
+
+    <g data-tip="Acceleration of the ego-vehicle, sometimes bundled into the proprioceptive feature vector. Provides the policy with direct insight into the system's near-future trajectory.">
+      <rect class="nb nb-typ" x="40" y="206" width="240" height="46" rx="8"/>
+      <text class="nl tl-typ" x="58" y="226">PROPRIOCEPTION</text>
+      <text class="nt tt-typ" x="58" y="244">Acceleration</text>
+    </g>
+
+    <g data-tip="Heading rate (yaw rate) — the angular velocity of the vehicle's orientation. Critical for predicting how steering inputs propagate over the next few timesteps.">
+      <rect class="nb nb-typ" x="40" y="264" width="240" height="46" rx="8"/>
+      <text class="nl tl-typ" x="58" y="284">PROPRIOCEPTION</text>
+      <text class="nt tt-typ" x="58" y="302">Heading rate</text>
+    </g>
+
+    <g data-tip="LiDAR provides metric distance to surroundings, removing perceptual ambiguity that exists in monocular or stereo vision. Typical in production self-driving stacks.">
+      <rect class="nb nb-typ" x="40" y="322" width="240" height="46" rx="8"/>
+      <text class="nl tl-typ" x="58" y="342">EXTRA SENSOR</text>
+      <text class="nt tt-typ" x="58" y="360">LiDAR ranges</text>
+    </g>
+
+    <g data-tip="Lane position and lane geometry, often pre-extracted by upstream perception modules and passed in as a structured feature.">
+      <rect class="nb nb-typ" x="40" y="380" width="240" height="46" rx="8"/>
+      <text class="nl tl-typ" x="58" y="400">SCENE STATE</text>
+      <text class="nt tt-typ" x="58" y="418">Lane geometry</text>
+    </g>
+
+    <!-- Right side of left column: equation -->
+    <g data-tip="Markov Decision Process: the policy maps the fully observable state directly to actions. The Markov property holds — current state contains all information needed for optimal action.">
+      <rect class="nb nb-eq" x="310" y="180" width="260" height="160" rx="10"/>
+      <text class="nl tl-eq" x="325" y="205">FORMULATION</text>
+      <text class="col-title tt-eq" x="325" y="232">MDP</text>
+      <text class="ns tl-eq" x="325" y="262" style="font-size:13px;">π(a_t | s_t)</text>
+      <text class="ns tl-eq" x="325" y="282">where s_t fully observable</text>
+      <line x1="325" y1="296" x2="555" y2="296" stroke="var(--eq-bd)" stroke-width="0.5" opacity=".4"/>
+      <text class="ns tl-eq" x="325" y="316">Markov property holds:</text>
+      <text class="ns tl-eq" x="325" y="333">P(s_t+1 | s_t, a_t)</text>
+    </g>
+
+    <!-- ═══ RIGHT COLUMN: SARATHI POMDP ═══ -->
+    <text class="col-title tt-kept" x="630" y="40">SARATHI POMDP Formulation</text>
+    <text class="ns tl-kept" x="630" y="58">Vision + minimal goal info — agent must infer dynamics</text>
+
+    <!-- Kept observations -->
+    <g data-tip="Two stereo grayscale cameras at 120×160 resolution mounted on the vehicle hood with 65° FOV — chosen to roughly match human eye geometry. Grayscale was forced by memory constraints, but it sharpened the test of whether vision can carry the load.">
+      <rect class="nb nb-kept" x="630" y="80" width="240" height="56" rx="8"/>
+      <text class="nl tl-kept" x="648" y="100">✓ KEPT — VISION</text>
+      <text class="nt tt-kept" x="648" y="120">Stereo grayscale 120×160</text>
+    </g>
+
+    <g data-tip="A 10-dimensional vector providing direction to the next checkpoint relative to the ego-vehicle: heading, distance, bearing. Tells the agent WHERE to go but not HOW to drive there.">
+      <rect class="nb nb-kept" x="630" y="148" width="240" height="56" rx="8"/>
+      <text class="nl tl-kept" x="648" y="168">✓ KEPT — GOAL</text>
+      <text class="nt tt-kept" x="648" y="188">Nav vector (10-dim)</text>
+    </g>
+
+    <!-- Removed observations - struck through, dashed border -->
+    <g data-tip="Removed. Without speed, the agent must infer how fast it is moving from temporal cues in the image sequence — this is what motivates the recurrent variant (RSAC).">
+      <rect class="nb nb-rem" x="630" y="220" width="240" height="46" rx="8"/>
+      <text class="nl tl-rem" x="648" y="240">✗ REMOVED</text>
+      <text class="nt tt-rem struck" x="648" y="258">Speed</text>
+    </g>
+
+    <g data-tip="Removed. The agent has indirect throttle control via engine force, but cannot observe its own acceleration directly — must learn to anticipate it from past trajectory.">
+      <rect class="nb nb-rem" x="630" y="278" width="240" height="46" rx="8"/>
+      <text class="nl tl-rem" x="648" y="298">✗ REMOVED</text>
+      <text class="nt tt-rem struck" x="648" y="316">Acceleration</text>
+    </g>
+
+    <g data-tip="Removed. Yaw rate is invisible to the policy. Steering effects must be inferred from how the visual scene rotates between frames — the canonical case for recurrent perception.">
+      <rect class="nb nb-rem" x="630" y="336" width="240" height="46" rx="8"/>
+      <text class="nl tl-rem" x="648" y="356">✗ REMOVED</text>
+      <text class="nt tt-rem struck" x="648" y="374">Heading rate</text>
+    </g>
+
+    <g data-tip="Removed. No metric distance information — the only depth cue available is the stereo disparity between the left and right camera images, which the CNN encoder must learn to use implicitly.">
+      <rect class="nb nb-rem" x="630" y="394" width="240" height="46" rx="8"/>
+      <text class="nl tl-rem" x="648" y="414">✗ REMOVED</text>
+      <text class="nt tt-rem struck" x="648" y="432">LiDAR / depth</text>
+    </g>
+
+    <!-- POMDP equation -->
+    <g data-tip="Partially Observable MDP: the policy maps a history of observations (or a learned hidden state) to actions, because the current observation alone is insufficient. Recurrent networks naturally compute this hidden state online.">
+      <rect class="nb nb-eq" x="900" y="180" width="280" height="200" rx="10"/>
+      <text class="nl tl-eq" x="915" y="205">FORMULATION</text>
+      <text class="col-title tt-eq" x="915" y="232">POMDP</text>
+      <text class="ns tl-eq" x="915" y="262" style="font-size:13px;">π(a_t | o_t, h_t)</text>
+      <text class="ns tl-eq" x="915" y="282">h_t = LSTM(o_t, h_t-1)</text>
+      <line x1="915" y1="296" x2="1165" y2="296" stroke="var(--eq-bd)" stroke-width="0.5" opacity=".4"/>
+      <text class="ns tl-eq" x="915" y="316">Belief state inferred</text>
+      <text class="ns tl-eq" x="915" y="333">from history of obs</text>
+      <text class="ns tl-eq" x="915" y="358" style="fill:var(--eq-h);font-weight:700;">→ motivates RSAC</text>
+    </g>
+
+    <!-- Bottom takeaway callout -->
+    <g>
+      <rect x="40" y="475" width="1140" height="96" rx="10" fill="url(#takeawayGrad)" opacity=".15"/>
+      <rect x="40" y="475" width="1140" height="96" rx="10" fill="none" stroke="var(--eq-bd)" stroke-width="1"/>
+      <text class="nl tl-eq" x="58" y="498">DESIGN INTENT</text>
+      <text class="ns" x="58" y="520" style="fill:var(--ink);font-size:13px;">If we want AI to drive like (or better than) humans, it must reason from visual cues alone.</text>
+      <text class="ns" x="58" y="538" style="fill:var(--ink2);font-size:12px;">Stripping privileged state forces the perception–policy stack to do real work,</text>
+      <text class="ns" x="58" y="554" style="fill:var(--ink2);font-size:12px;">isolating the contribution of temporal memory (recurrence) as a measurable variable.</text>
+    </g>
+
+    <defs>
+      <linearGradient id="takeawayGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#A257DF"/>
+        <stop offset="100%" stop-color="#F66934"/>
+      </linearGradient>
+    </defs>
+
+  </svg>
+
+  <!-- Legend -->
+  <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-top:14px;margin-top:18px;border-top:1px solid var(--bdr);font-family:'DM Mono',monospace;font-size:11px;color:var(--ink3);">
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:9px;height:9px;border-radius:2px;background:#6B7280;"></div>Typical (privileged)</div>
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:9px;height:9px;border-radius:2px;background:#2563EB;"></div>SARATHI · kept</div>
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:9px;height:9px;border-radius:2px;background:#DC2626;border:1px dashed #DC2626;background:transparent;"></div>SARATHI · removed</div>
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:9px;height:9px;border-radius:2px;background:#D97706;"></div>Formulation / equation</div>
+    <span style="margin-left:auto;font-size:9px;color:var(--ink3);">meetdoshi.me · SARATHI</span>
+  </div>
+</div>
+
+<div id="tp" style="display:none;position:fixed;max-width:280px;background:var(--bg2);border:1px solid var(--bdr);border-radius:8px;padding:10px 13px;font-size:10px;color:var(--ink2);line-height:1.7;z-index:200;pointer-events:none;font-family:'DM Mono',monospace;white-space:normal;word-break:break-word;box-shadow:0 8px 32px rgba(0,0,0,.5);"></div>
+
+<script>
+let dark = true;
+function tt() {
+  dark = !dark;
+  document.body.className = dark ? '' : 'light';
+  document.querySelector('.tg').textContent = dark ? '🌙' : '☀️';
+}
+
+const tp = document.getElementById('tp');
+const PAD = 14;
+document.querySelectorAll('[data-tip]').forEach(el => {
+  el.style.cursor = 'default';
+  el.addEventListener('mouseenter', e => {
+    tp.textContent = el.dataset.tip;
+    tp.style.left = '-9999px'; tp.style.top = '-9999px';
+    tp.style.display = 'block';
+  });
+  el.addEventListener('mousemove', e => {
+    const tw = tp.offsetWidth, th = tp.offsetHeight;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const cx = e.clientX, cy = e.clientY;
+    let left = cx + PAD, top = cy - th - PAD;
+    if (left + tw > vw - 8) left = cx - tw - PAD;
+    if (top < 8) top = cy + PAD;
+    if (left < 8) left = 8;
+    if (left + tw > vw - 8) left = vw - tw - 8;
+    if (top < 8) top = 8;
+    if (top + th > vh - 8) top = vh - th - 8;
+    tp.style.left = left + 'px';
+    tp.style.top = top + 'px';
+  });
+  el.addEventListener('mouseleave', () => { tp.style.display = 'none'; });
+});
+</script>
+</body>
+</html>

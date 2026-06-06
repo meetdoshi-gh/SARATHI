@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SARATHI — SAC vs RSAC</title>
+<style>
+html { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,.15); border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: rgba(255,255,255,.3); }
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@600;700;800&family=DM+Mono:wght@400;500&display=swap');
+
+body {
+  margin: 0; padding: 28px 24px;
+  background: var(--bg); color: var(--ink);
+  font-family: 'Inter', system-ui, sans-serif;
+  transition: background .3s, color .3s;
+
+  --bg: #0c0b09; --bg2: #1a1714;
+  --ink: #f0ede6; --ink2: #b8b4aa; --ink3: #888580;
+  --bdr: rgba(255,255,255,.10);
+  --sh: 0 2px 8px rgba(0,0,0,.6);
+
+  /* SAC column hues (sky blue family) */
+  --in-bg:  #1f1a07; --in-bd:  #D97706; --in-h:  #fcd34d; --in-s:  #f59e0b;
+  --sac-bg: #0f1f2e; --sac-bd: #0284C7; --sac-h: #7dd3fc; --sac-s: #38bdf8;
+  --rsac-bg:#2e0f1f; --rsac-bd:#DB2777; --rsac-h:#f9a8d4; --rsac-s:#ec4899;
+  --lstm-bg:#2e1507; --lstm-bd:#EA580C; --lstm-h:#fdba74; --lstm-s:#f97316;
+  --head-bg:#1a0a1a; --head-bd:#9333EA; --head-h:#d8b4fe; --head-s:#a855f7;
+  --out-bg: #0d261a; --out-bd: #059669; --out-h: #6ee7b7; --out-s: #34d399;
+}
+body.light {
+  --bg: #f5f3ef; --bg2: #ffffff;
+  --ink: #1a1714; --ink2: #44403c; --ink3: #78716c;
+  --bdr: rgba(0,0,0,.12);
+  --sh: 0 2px 8px rgba(0,0,0,.10);
+
+  --in-bg:  #fef3c7; --in-bd:  #B45309; --in-h:  #78350f; --in-s:  #D97706;
+  --sac-bg: #e0f2fe; --sac-bd: #0369A1; --sac-h: #0c4a6e; --sac-s: #0284C7;
+  --rsac-bg:#fce7f3; --rsac-bd:#BE185D; --rsac-h:#831843; --rsac-s:#DB2777;
+  --lstm-bg:#ffedd5; --lstm-bd:#C2410C; --lstm-h:#7c2d12; --lstm-s:#EA580C;
+  --head-bg:#f5f3ff; --head-bd:#7C3AED; --head-h:#4c1d95; --head-s:#7C3AED;
+  --out-bg: #d1fae5; --out-bd: #047857; --out-h: #064e3b; --out-s: #059669;
+}
+
+.tg { position: fixed; top: 16px; right: 16px; z-index: 100; width: 36px; height: 36px; border-radius: 50%; background: var(--bg2); border: 1px solid var(--bdr); cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; box-shadow: var(--sh); transition: transform .15s; }
+.tg:hover { transform: scale(1.08); }
+
+.title { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 800; margin: 0 0 6px 0; color: var(--ink); }
+.subtitle { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--ink3); margin: 0 0 24px 0; letter-spacing: .12em; text-transform: uppercase; }
+
+.nb { stroke-width: 1.5; transition: filter .2s; }
+.nb-in   { fill: var(--in-bg);   stroke: var(--in-bd); }
+.nb-sac  { fill: var(--sac-bg);  stroke: var(--sac-bd); }
+.nb-rsac { fill: var(--rsac-bg); stroke: var(--rsac-bd); }
+.nb-lstm { fill: var(--lstm-bg); stroke: var(--lstm-bd); stroke-width: 2.5; filter: drop-shadow(0 0 12px rgba(234,88,12,.55)); }
+.nb-head { fill: var(--head-bg); stroke: var(--head-bd); }
+.nb-out  { fill: var(--out-bg);  stroke: var(--out-bd); }
+
+text { font-family: 'DM Mono', monospace; }
+.col-title { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; }
+.col-sub   { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
+.nl { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; font-weight: 500; }
+.nt { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; }
+.ns { font-size: 10px; }
+
+.tl-in   { fill: var(--in-s); }    .tt-in   { fill: var(--in-h); }
+.tl-sac  { fill: var(--sac-s); }   .tt-sac  { fill: var(--sac-h); }
+.tl-rsac { fill: var(--rsac-s); }  .tt-rsac { fill: var(--rsac-h); }
+.tl-lstm { fill: var(--lstm-s); }  .tt-lstm { fill: var(--lstm-h); }
+.tl-head { fill: var(--head-s); }  .tt-head { fill: var(--head-h); }
+.tl-out  { fill: var(--out-s); }   .tt-out  { fill: var(--out-h); }
+
+.ay { fill: none; stroke: var(--ink2); stroke-width: 2; opacity: .55; }
+.alab { font-size: 9px; fill: var(--ink3); text-transform: uppercase; letter-spacing: .12em; font-family: 'DM Mono', monospace; }
+
+g[data-tip] { cursor: default; }
+g[data-tip]:hover .nb { filter: brightness(1.15); }
+g[data-tip]:hover .nb-lstm { filter: brightness(1.15) drop-shadow(0 0 18px rgba(234,88,12,.7)); }
+</style>
+</head>
+<body>
+
+<button class="tg" onclick="tt()" aria-label="Toggle theme">🌙</button>
+
+<div style="width:100%;max-width:1240px;margin:0 auto;">
+  <h1 class="title">SAC vs RSAC — Algorithmic Comparison</h1>
+  <p class="subtitle">Same encoder, same critics, same entropy mechanics · single LSTM insertion changes the entire training story</p>
+
+  <svg viewBox="0 0 1240 730" width="100%" style="display:block;" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="ah" viewBox="0 -4 8 8" refX="6" refY="0" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,-4 L8,0 L0,4" fill="none" stroke="currentColor" stroke-width="2"/>
+      </marker>
+      <linearGradient id="lstmGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#7B35CC"/>
+        <stop offset="50%" stop-color="#DB2777"/>
+        <stop offset="100%" stop-color="#EA580C"/>
+      </linearGradient>
+    </defs>
+
+    <!-- Vertical column divider -->
+    <line x1="620" y1="40" x2="620" y2="600" stroke="var(--bdr)" stroke-width="1" stroke-dasharray="2 4"/>
+
+    <!-- ═══ LEFT COLUMN — SAC ═══ -->
+    <text class="col-title tt-sac" x="40" y="40">SAC</text>
+    <text class="col-sub tl-sac" x="40" y="60">Soft Actor-Critic · transition-level</text>
+
+    <!-- SAC: Input -->
+    <g data-tip="Per-timestep fused features: concat(left_feat_128, right_feat_128, nav_10) → fused_dim. Each forward pass operates on a single transition.">
+      <rect class="nb nb-in" x="160" y="90" width="280" height="60" rx="8"/>
+      <text class="nl tl-in" x="178" y="113">INPUT</text>
+      <text class="nt tt-in" x="178" y="135">x_t  ∈  ℝ^(B, fused_dim)</text>
+    </g>
+    <path class="ay" d="M 300 150 L 300 175" marker-end="url(#ah)" style="color:var(--ink2);"/>
+
+    <!-- SAC: FC1 -->
+    <g data-tip="Fully-connected layer with hidden size 512, followed by ReLU. The non-recurrent path operates on the per-step fused vector and emits an intermediate feature.">
+      <rect class="nb nb-sac" x="160" y="180" width="280" height="56" rx="8"/>
+      <text class="nl tl-sac" x="178" y="202">FC LAYER 1</text>
+      <text class="nt tt-sac" x="178" y="222">Linear(fused → 512) + ReLU</text>
+    </g>
+    <path class="ay" d="M 300 236 L 300 261" marker-end="url(#ah)" style="color:var(--ink2);"/>
+
+    <!-- SAC: FC2 -->
+    <g data-tip="Second fully-connected layer with hidden size 128, followed by ReLU. Reduces dimensionality before the policy heads.">
+      <rect class="nb nb-sac" x="160" y="266" width="280" height="56" rx="8"/>
+      <text class="nl tl-sac" x="178" y="288">FC LAYER 2</text>
+      <text class="nt tt-sac" x="178" y="308">Linear(512 → 128) + ReLU</text>
+    </g>
+    <path class="ay" d="M 300 322 L 300 348" marker-end="url(#ah)" style="color:var(--ink2);"/>
+
+    <!-- SAC: Heads (split: μ and log σ) -->
+    <g data-tip="Squashed-Gaussian policy: μ-head and log-σ head produce the parameters. log σ is clamped to [−20, 5] for numerical stability before exponentiation.">
+      <rect class="nb nb-head" x="160" y="353" width="130" height="56" rx="8"/>
+      <text class="nl tl-head" x="173" y="375">HEAD μ</text>
+      <text class="nt tt-head" x="173" y="395">Linear(128 → 2)</text>
+    </g>
+    <g data-tip="log σ head: identical structure to μ-head. Together with μ they parameterise the Normal distribution from which actions are sampled (training) or whose mean is used (inference).">
+      <rect class="nb nb-head" x="310" y="353" width="130" height="56" rx="8"/>
+      <text class="nl tl-head" x="323" y="375">HEAD log σ</text>
+      <text class="nt tt-head" x="323" y="395">Linear(128 → 2)</text>
+    </g>
+    <path class="ay" d="M 225 409 L 270 437" style="color:var(--ink2);"/>
+    <path class="ay" d="M 375 409 L 330 437" marker-end="url(#ah)" style="color:var(--ink2);"/>
+
+    <!-- SAC: Output (action) -->
+    <g data-tip="Reparameterised sample → tanh squashing → rescale to action bounds. Log-probability includes the standard correction term −Σ log(1 − tanh²(z) + ε) for the change-of-variables.">
+      <rect class="nb nb-out" x="160" y="442" width="280" height="60" rx="8"/>
+      <text class="nl tl-out" x="178" y="465">OUTPUT</text>
+      <text class="nt tt-out" x="178" y="487">a_t = tanh(μ + σ·ε) → bounds</text>
+    </g>
+
+    <!-- SAC summary box at bottom -->
+    <g>
+      <rect class="nb nb-sac" x="40" y="525" width="540" height="60" rx="8" style="opacity:.5;"/>
+      <text class="nl tl-sac" x="58" y="547">SAMPLING UNIT · TRANSITION</text>
+      <text class="ns" x="58" y="567" style="fill:var(--ink2);font-size:11px;">Each minibatch contains B i.i.d. transitions sampled from a flat replay buffer.</text>
+    </g>
+
+    <!-- ═══ RIGHT COLUMN — RSAC ═══ -->
+    <text class="col-title tt-rsac" x="660" y="40">RSAC</text>
+    <text class="col-sub tl-rsac" x="660" y="60">Recurrent SAC · sequence-level</text>
+
+    <!-- RSAC: Input -->
+    <g data-tip="Per-sequence fused features: a length-T sequence of fused vectors, batched. Shape (B, T, fused_dim) — T is a tuned hyperparameter. The same encoder produces these per-step, and the LSTM consumes them as a sequence.">
+      <rect class="nb nb-in" x="780" y="90" width="280" height="60" rx="8"/>
+      <text class="nl tl-in" x="798" y="113">INPUT (sequence)</text>
+      <text class="nt tt-in" x="798" y="135">x_1:T  ∈  ℝ^(B, T, fused_dim)</text>
+    </g>
+    <path class="ay" d="M 920 150 L 920 175" marker-end="url(#ah)" style="color:var(--ink2);"/>
+
+    <!-- RSAC: LSTM (key novel component, glowing) -->
+    <g data-tip="LSTM with hidden size 128, processed batch-first. Produces per-step output AND carries hidden state. At training, hidden state is initialised to zero per fragment (burn-in-free); at inference, hidden state is carried across the full episode.">
+      <rect x="780" y="175" width="280" height="3" rx="1.5" fill="url(#lstmGrad)" opacity=".95"/>
+      <rect class="nb nb-lstm" x="780" y="180" width="280" height="80" rx="8"/>
+      <text class="nl tl-lstm" x="798" y="203">RECURRENCE  ★ key delta</text>
+      <text class="nt tt-lstm" x="798" y="225">LSTM(input=fused, h=128)</text>
+      <text class="ns tl-lstm" x="798" y="247">batch_first=True, num_layers=1</text>
+    </g>
+    <path class="ay" d="M 920 260 L 920 285" marker-end="url(#ah)" style="color:var(--ink2);"/>
+
+    <!-- RSAC: FC -->
+    <g data-tip="Fully-connected layer with hidden size 128, followed by ReLU. Operates on each timestep of the LSTM output independently before the heads.">
+      <rect class="nb nb-rsac" x="780" y="290" width="280" height="56" rx="8"/>
+      <text class="nl tl-rsac" x="798" y="312">FC LAYER</text>
+      <text class="nt tt-rsac" x="798" y="332">Linear(128 → 128) + ReLU</text>
+    </g>
+    <path class="ay" d="M 920 346 L 920 372" marker-end="url(#ah)" style="color:var(--ink2);"/>
+
+    <!-- RSAC: Heads -->
+    <g data-tip="Squashed-Gaussian policy applied per timestep. Same numerical stability clamp on log σ. Heads are linear projections from the LSTM-conditioned hidden representation.">
+      <rect class="nb nb-head" x="780" y="377" width="130" height="56" rx="8"/>
+      <text class="nl tl-head" x="793" y="399">HEAD μ</text>
+      <text class="nt tt-head" x="793" y="419">Linear(128 → 2)</text>
+    </g>
+    <g data-tip="log σ head per timestep. Output broadcast across the sequence dimension during loss computation; one log σ per (timestep, action-component) pair.">
+      <rect class="nb nb-head" x="930" y="377" width="130" height="56" rx="8"/>
+      <text class="nl tl-head" x="943" y="399">HEAD log σ</text>
+      <text class="nt tt-head" x="943" y="419">Linear(128 → 2)</text>
+    </g>
+    <path class="ay" d="M 845 433 L 890 461" style="color:var(--ink2);"/>
+    <path class="ay" d="M 995 433 L 950 461" marker-end="url(#ah)" style="color:var(--ink2);"/>
+
+    <!-- RSAC: Output -->
+    <g data-tip="Action sampled per timestep from the squashed Gaussian, with the standard log-prob correction. Output shape (B, T, action_dim) — one action distribution per step in the sequence.">
+      <rect class="nb nb-out" x="780" y="466" width="280" height="60" rx="8"/>
+      <text class="nl tl-out" x="798" y="489">OUTPUT (per timestep)</text>
+      <text class="nt tt-out" x="798" y="511">a_1:T = tanh(μ_1:T + σ_1:T · ε)</text>
+    </g>
+
+    <!-- RSAC summary -->
+    <g>
+      <rect class="nb nb-rsac" x="660" y="546" width="540" height="60" rx="8" style="opacity:.5;"/>
+      <text class="nl tl-rsac" x="678" y="568">SAMPLING UNIT · LENGTH-T FRAGMENT</text>
+      <text class="ns" x="678" y="588" style="fill:var(--ink2);font-size:11px;">Each minibatch contains B fragments of length-T contiguous transitions</text>
+      <text class="ns" x="678" y="603" style="fill:var(--ink2);font-size:11px;">sampled from the episode-indexed buffer. (T = tuned hyperparameter)</text>
+    </g>
+
+    <!-- ═══ Bottom: structural-delta callout ═══ -->
+    <g>
+      <rect x="40" y="630" width="1160" height="74" rx="8" fill="var(--bg2)" stroke="var(--lstm-bd)" stroke-width="1.5"/>
+      <text class="nl tl-lstm" x="58" y="652">STRUCTURAL DELTA</text>
+      <text class="ns" x="58" y="672" style="fill:var(--ink);font-size:12px;">RSAC inserts a single LSTM layer between fused features and policy head — but this requires</text>
+      <text class="ns" x="58" y="688" style="fill:var(--ink);font-size:12px;">a complete redesign of the replay buffer to sample contiguous sequences instead of i.i.d. transitions.</text>
+    </g>
+
+  </svg>
+
+  <!-- Legend -->
+  <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-top:14px;margin-top:18px;border-top:1px solid var(--bdr);font-family:'DM Mono',monospace;font-size:11px;color:var(--ink3);">
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:9px;height:9px;border-radius:2px;background:#D97706;"></div>Input (fused)</div>
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:9px;height:9px;border-radius:2px;background:#0284C7;"></div>SAC FC stack</div>
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:9px;height:9px;border-radius:2px;background:#DB2777;"></div>RSAC FC stack</div>
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:9px;height:9px;border-radius:2px;background:#EA580C;box-shadow:0 0 6px rgba(234,88,12,.5);"></div>LSTM (key delta)</div>
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:9px;height:9px;border-radius:2px;background:#9333EA;"></div>Policy head</div>
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:9px;height:9px;border-radius:2px;background:#059669;"></div>Action output</div>
+    <span style="margin-left:auto;font-size:9px;color:var(--ink3);">meetdoshi.me · SARATHI</span>
+  </div>
+</div>
+
+<div id="tp" style="display:none;position:fixed;max-width:280px;background:var(--bg2);border:1px solid var(--bdr);border-radius:8px;padding:10px 13px;font-size:10px;color:var(--ink2);line-height:1.7;z-index:200;pointer-events:none;font-family:'DM Mono',monospace;white-space:normal;word-break:break-word;box-shadow:0 8px 32px rgba(0,0,0,.5);"></div>
+
+<script>
+let dark = true;
+function tt() {
+  dark = !dark;
+  document.body.className = dark ? '' : 'light';
+  document.querySelector('.tg').textContent = dark ? '🌙' : '☀️';
+}
+
+const tp = document.getElementById('tp');
+const PAD = 14;
+document.querySelectorAll('[data-tip]').forEach(el => {
+  el.style.cursor = 'default';
+  el.addEventListener('mouseenter', e => {
+    tp.textContent = el.dataset.tip;
+    tp.style.left = '-9999px'; tp.style.top = '-9999px';
+    tp.style.display = 'block';
+  });
+  el.addEventListener('mousemove', e => {
+    const tw = tp.offsetWidth, th = tp.offsetHeight;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const cx = e.clientX, cy = e.clientY;
+    let left = cx + PAD, top = cy - th - PAD;
+    if (left + tw > vw - 8) left = cx - tw - PAD;
+    if (top < 8) top = cy + PAD;
+    if (left < 8) left = 8;
+    if (left + tw > vw - 8) left = vw - tw - 8;
+    if (top < 8) top = 8;
+    if (top + th > vh - 8) top = vh - th - 8;
+    tp.style.left = left + 'px';
+    tp.style.top = top + 'px';
+  });
+  el.addEventListener('mouseleave', () => { tp.style.display = 'none'; });
+});
+</script>
+</body>
+</html>

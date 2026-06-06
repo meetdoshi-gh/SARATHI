@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SARATHI — Training Loop</title>
+<style>
+html{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.18) transparent}
+::-webkit-scrollbar{width:7px;height:7px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.28)}
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Mono:wght@400;500&display=swap');
+body{
+  margin:0;padding:28px 20px;font-family:'DM Mono',monospace;
+  background:var(--bg);color:var(--ink);transition:background .3s,color .3s;
+  --bg:#0c0b09;--bg2:#161410;--bg3:#1e1c19;
+  --ink:#f0ede6;--ink2:#b8b4aa;--ink3:#888580;--bdr:rgba(255,255,255,.09);--sh:0 4px 20px rgba(0,0,0,.6);
+  --c1:#0d1524;--c1b:#3B82F6;--c1h:#93c5fd;--c1s:#60a5fa;
+  --c2:#1a0e24;--c2b:#A855F7;--c2h:#d8b4fe;--c2s:#c084fc;
+  --c3:#1a0a08;--c3b:#F97316;--c3h:#fdba74;--c3s:#fb923c;
+  --c4:#0e1f12;--c4b:#22C55E;--c4h:#86efac;--c4s:#4ade80;
+  --c5:#1c180a;--c5b:#EAB308;--c5h:#fde047;--c5s:#facc15;
+  --c6:#1f0d10;--c6b:#DC2626;--c6h:#fca5a5;--c6s:#f87171;
+}
+body.light{
+  --bg:#f4f2ee;--bg2:#fff;--bg3:#ebe8e2;--ink:#1a1714;--ink2:#44403c;--ink3:#78716c;--bdr:rgba(0,0,0,.10);--sh:0 4px 20px rgba(0,0,0,.12);
+  --c1:#dbeafe;--c1b:#1D4ED8;--c1h:#1e3a8a;--c1s:#2563EB;
+  --c2:#f3e8ff;--c2b:#7E22CE;--c2h:#4c1d95;--c2s:#7C3AED;
+  --c3:#fff7ed;--c3b:#C2410C;--c3h:#7c2d12;--c3s:#EA580C;
+  --c4:#dcfce7;--c4b:#15803D;--c4h:#14532d;--c4s:#16A34A;
+  --c5:#fefce8;--c5b:#A16207;--c5h:#713f12;--c5s:#CA8A04;
+  --c6:#fee2e2;--c6b:#B91C1C;--c6h:#7f1d1d;--c6s:#DC2626;
+}
+.tg{position:fixed;top:16px;right:16px;z-index:200;width:38px;height:38px;border-radius:50%;background:var(--bg2);border:1px solid var(--bdr);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:var(--sh);transition:transform .15s}
+.tg:hover{transform:scale(1.1)}
+.wrap{width:100%;max-width:1140px;margin:0 auto}
+.hdg{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin:0 0 4px;color:var(--ink)}
+.sub{font-size:11px;color:var(--ink3);letter-spacing:.14em;text-transform:uppercase;margin:0 0 22px}
+text{font-family:'DM Mono',monospace}
+.nl{font-size:10px;letter-spacing:.16em;text-transform:uppercase}
+.nt{font-family:'Syne',sans-serif;font-size:14px;font-weight:700}
+.ns{font-size:11px}.nd{font-size:9.5px;opacity:.8}
+.nb{stroke-width:1.5;transition:filter .2s}
+g[data-tip]{cursor:default}
+g[data-tip]:hover .nb{filter:brightness(1.22)}
+#tp{display:none;position:fixed;max-width:265px;background:var(--bg2);border:1px solid var(--bdr);border-radius:9px;padding:10px 13px;font-size:10.5px;color:var(--ink2);line-height:1.75;z-index:300;pointer-events:none;word-break:break-word;box-shadow:0 8px 32px rgba(0,0,0,.55)}
+.lgd{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding-top:12px;margin-top:14px;border-top:1px solid var(--bdr);font-size:11px;color:var(--ink3)}
+.lgd-dot{width:9px;height:9px;border-radius:2px}
+</style>
+</head>
+<body>
+<button class="tg" onclick="toggle()" aria-label="Toggle theme">🌙</button>
+<div class="wrap">
+  <h1 class="hdg">Training Loop — SAC &amp; RSAC</h1>
+  <p class="sub">Per-epoch procedure · RSAC adds sequence sampling + LSTM init · Both use PyTorch Lightning manual optimization</p>
+
+<svg viewBox="0 0 1140 640" width="100%" xmlns="http://www.w3.org/2000/svg" style="display:block">
+<defs>
+  <marker id="arr" markerWidth="9" markerHeight="9" refX="5" refY="4.5" orient="auto">
+    <path d="M1.5,1.5 L7.5,4.5 L1.5,7.5" fill="none" stroke="#888580" stroke-width="1.6"/>
+  </marker>
+  <marker id="arr-b" markerWidth="9" markerHeight="9" refX="5" refY="4.5" orient="auto">
+    <path d="M1.5,1.5 L7.5,4.5 L1.5,7.5" fill="none" stroke="#60a5fa" stroke-width="1.6"/>
+  </marker>
+  <marker id="arr-g" markerWidth="9" markerHeight="9" refX="5" refY="4.5" orient="auto">
+    <path d="M1.5,1.5 L7.5,4.5 L1.5,7.5" fill="none" stroke="#4ade80" stroke-width="1.6"/>
+  </marker>
+  <marker id="arr-y" markerWidth="9" markerHeight="9" refX="5" refY="4.5" orient="auto">
+    <path d="M1.5,1.5 L7.5,4.5 L1.5,7.5" fill="none" stroke="#facc15" stroke-width="1.6"/>
+  </marker>
+  <marker id="arr-r" markerWidth="9" markerHeight="9" refX="5" refY="4.5" orient="auto">
+    <path d="M1.5,1.5 L7.5,4.5 L1.5,7.5" fill="none" stroke="#f87171" stroke-width="1.6"/>
+  </marker>
+  <filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+
+<!-- Step 0: START -->
+<g data-tip="Training begins. PyTorch Lightning manages the epoch loop. Manual optimization is used — three separate optimizers for critic, actor, and alpha (entropy coefficient) are stepped independently.">
+  <rect class="nb" x="444" y="20" width="252" height="50" rx="25" fill="var(--c1)" stroke="var(--c1b)" stroke-width="2"/>
+  <text class="nt" fill="var(--c1h)" x="570" y="42" text-anchor="middle">START TRAINING</text>
+  <text class="nd" fill="var(--c1s)" x="570" y="58" text-anchor="middle">PyTorch Lightning · manual optimization</text>
+</g>
+
+<line x1="570" y1="70" x2="570" y2="96" stroke="var(--c1b)" stroke-width="1.4" marker-end="url(#arr-b)"/>
+
+<!-- Step 1: Warmup fill -->
+<g data-tip="Warmup phase: interact with the environment using the current (initially random) policy until the replay buffer contains at least samples_per_epoch transitions. Ensures training steps always have enough data.">
+  <rect class="nb" x="356" y="96" width="428" height="56" rx="10" fill="var(--c1)" stroke="var(--c1b)"/>
+  <text class="nl" fill="var(--c1s)" x="374" y="117">WARMUP: FILL REPLAY BUFFER</text>
+  <text class="ns" fill="var(--c1h)" x="374" y="140">interact until |buffer| ≥ samples_per_epoch</text>
+</g>
+
+<line x1="570" y1="152" x2="570" y2="178" stroke="var(--c1b)" stroke-width="1.4" marker-end="url(#arr-b)"/>
+
+<!-- Step 2: Epoch loop label -->
+<text class="nl" fill="var(--c5s)" x="36" y="198">FOR EACH EPOCH</text>
+<line x1="36" y1="204" x2="1104" y2="204" stroke="var(--c5b)" stroke-width=".7" stroke-dasharray="2 4"/>
+
+<!-- Step 2a: Collect 4 episodes -->
+<g data-tip="At each epoch end (on_train_epoch_end), 4 new episodes are collected using the current policy in 'normal' mode (stochastic for exploration). Transitions are appended to the replay buffer. If buffer falls below threshold, more episodes are collected automatically.">
+  <rect class="nb" x="356" y="212" width="428" height="56" rx="10" fill="var(--c2)" stroke="var(--c2b)"/>
+  <text class="nl" fill="var(--c2s)" x="374" y="233">COLLECT 4 EPISODES (stochastic policy)</text>
+  <text class="ns" fill="var(--c2h)" x="374" y="256">append to replay buffer · SAC: transitions · RSAC: full episodes</text>
+</g>
+
+<line x1="570" y1="268" x2="570" y2="294" stroke="var(--c2b)" stroke-width="1.4" marker-end="url(#arr)"/>
+
+<!-- Step 3: Sample batch -->
+<g data-tip="SAC: random.sample draws iid transitions. RSAC: sample_sequence draws B contiguous T-step fragments from random episodes. Both batch size B and fragment length T are key hyperparameters to tune.">
+  <rect class="nb" x="356" y="294" width="428" height="56" rx="10" fill="var(--c3)" stroke="var(--c3b)"/>
+  <text class="nl" fill="var(--c3s)" x="374" y="315">SAMPLE BATCH FROM BUFFER</text>
+  <text class="ns" fill="var(--c3h)" x="374" y="338">SAC: batch of transitions · RSAC: batch of length-T sequences</text>
+</g>
+
+<!-- No center arrow — split handled by diagonal paths below -->
+
+<!-- Step 4: Critic update -->
+<g data-tip="Clipped double-Q critic update: compute target_q = r + γ*(min(Q1',Q2')(s',a') − α*log_π(a'|s')). Compute critic loss = SmoothL1(Q1, target_q) + SmoothL1(Q2, target_q). Backprop with gradient clipping (max_norm=10).">
+  <rect class="nb" x="36" y="376" width="444" height="68" rx="10" fill="var(--c4)" stroke="var(--c4b)"/>
+  <text class="nl" fill="var(--c4s)" x="54" y="397">① UPDATE CRITICS (double-Q)</text>
+  <text class="ns" fill="var(--c4h)" x="54" y="417">target_q = r + γ·(min Q' − α·log π)</text>
+  <text class="ns" fill="var(--c4h)" x="54" y="434">loss = SmoothL1(Q1,y) + SmoothL1(Q2,y) · clip grad ≤ 10</text>
+</g>
+
+<!-- Step 5: Actor update -->
+<g data-tip="Actor update: sample actions from current policy, compute actor_loss = E[α·log_π(a|s) − min(Q1,Q2)(s,a)]. Backprop with gradient clipping. Actor is updated AFTER critics to use fresh Q-value estimates. NOTE: SAC has NO target network for the actor — only critic targets exist.">
+  <rect class="nb" x="660" y="376" width="444" height="68" rx="10" fill="var(--c3)" stroke="var(--c3b)"/>
+  <text class="nl" fill="var(--c3s)" x="678" y="397">② UPDATE ACTOR</text>
+  <text class="ns" fill="var(--c3h)" x="678" y="417">loss = E[α·log π(a|s) − min Q(s,a)]</text>
+  <text class="ns" fill="var(--c3h)" x="678" y="434">backprop · clip grad ≤ 10</text>
+</g>
+
+<!-- arrows from sample → critic and actor (diagonal split) -->
+<path d="M480,350 Q480,360 258,376" fill="none" stroke="var(--c3b)" stroke-width="1.2" marker-end="url(#arr)"/>
+<path d="M660,350 Q660,360 882,376" fill="none" stroke="var(--c3b)" stroke-width="1.2" marker-end="url(#arr)"/>
+
+<!-- arrows: critics → alpha, actor → alpha (both feed alpha) -->
+<path d="M258,444 C258,460 410,460 410,472" fill="none" stroke="var(--c4s)" stroke-width="1.2" marker-end="url(#arr)"/>
+<path d="M882,444 C882,460 730,460 730,472" fill="none" stroke="var(--c3s)" stroke-width="1.2" marker-end="url(#arr)"/>
+
+<!-- Step 6: Alpha update -->
+<g data-tip="Automatic entropy tuning: alpha_loss = −E[log_alpha·(log π(a|s) + H̄)] where H̄ = −action_dim is the target entropy. Learnable log_alpha ensures policy entropy stays near target throughout training.">
+  <rect class="nb" x="348" y="472" width="444" height="56" rx="10" fill="var(--c5)" stroke="var(--c5b)"/>
+  <text class="nl" fill="var(--c5s)" x="366" y="493">③ UPDATE ALPHA (auto entropy tuning)</text>
+  <text class="ns" fill="var(--c5h)" x="366" y="515">loss_α = −E[log α · (log π + H̄)] · H̄ = −|A|</text>
+</g>
+
+<!-- arrow: alpha → soft target update -->
+<line x1="570" y1="528" x2="570" y2="546" stroke="var(--c5b)" stroke-width="1.4" marker-end="url(#arr-y)"/>
+
+<!-- Step 7: Soft target update — CRITIC TARGETS ONLY (no actor target in SAC) -->
+<g data-tip="Polyak averaging of CRITIC target networks only: θ_target ← τ·θ + (1−τ)·θ_target. SAC has NO target network for the actor — only Q1_target and Q2_target. τ controls tracking speed — too large causes oscillation, too small causes target to lag." filter="url(#glow)">
+  <rect class="nb" x="390" y="546" width="360" height="58" rx="10" fill="var(--c2)" stroke="var(--c2b)" stroke-width="2"/>
+  <text class="nl" fill="var(--c2s)" x="570" y="568" text-anchor="middle">★ SOFT UPDATE — CRITIC TARGETS ONLY</text>
+  <text class="ns" fill="var(--c2h)" x="570" y="590" text-anchor="middle">θ_tgt ← τ·θ + (1−τ)·θ_tgt · Q1, Q2 targets only</text>
+</g>
+
+<!-- repeat loop arrow — from right edge of soft update block, around the right, back to epoch start -->
+<path d="M750,572 Q1108,572 1108,390 Q1108,212 800,212" fill="none" stroke="var(--c5b)" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#arr-y)"/>
+<text class="nd" fill="var(--c5s)" x="1078" y="390">repeat</text>
+<text class="nd" fill="var(--c5s)" x="1074" y="404">epochs</text>
+
+<!-- RSAC-only annotation -->
+<rect x="36" y="310" width="296" height="44" rx="7" fill="var(--c2)" stroke="var(--c2b)" stroke-dasharray="4 2"/>
+<text class="nl" fill="var(--c2s)" x="52" y="328">RSAC ONLY</text>
+<text class="ns" fill="var(--c2h)" x="52" y="347">zero-init LSTM h₀ per fragment</text>
+</svg>
+
+<div class="lgd">
+  <div style="display:flex;align-items:center;gap:6px"><div class="lgd-dot" style="background:#3B82F6"></div>Initialization / warmup</div>
+  <div style="display:flex;align-items:center;gap:6px"><div class="lgd-dot" style="background:#A855F7"></div>Episode collection</div>
+  <div style="display:flex;align-items:center;gap:6px"><div class="lgd-dot" style="background:#F97316"></div>Sampling</div>
+  <div style="display:flex;align-items:center;gap:6px"><div class="lgd-dot" style="background:#22C55E"></div>Critic update</div>
+  <div style="display:flex;align-items:center;gap:6px"><div class="lgd-dot" style="background:#EAB308"></div>Alpha / target update</div>
+  <span style="margin-left:auto;font-size:9px;color:var(--ink3)">meetdoshi.me · SARATHI</span>
+</div>
+</div>
+<div id="tp"></div>
+<script>
+let dark=true;
+function toggle(){dark=!dark;document.body.className=dark?'':'light';document.querySelector('.tg').textContent=dark?'🌙':'☀️'}
+const tp=document.getElementById('tp'),PAD=14;
+document.querySelectorAll('[data-tip]').forEach(el=>{
+  el.addEventListener('mouseenter',()=>{tp.textContent=el.dataset.tip;tp.style.display='block'});
+  el.addEventListener('mousemove',e=>{
+    const tw=tp.offsetWidth,th=tp.offsetHeight,vw=window.innerWidth,vh=window.innerHeight;
+    let l=e.clientX+PAD,t=e.clientY-th-PAD;
+    if(l+tw>vw-8)l=e.clientX-tw-PAD;if(t<8)t=e.clientY+PAD;
+    tp.style.left=Math.max(8,Math.min(l,vw-tw-8))+'px';tp.style.top=Math.max(8,Math.min(t,vh-th-8))+'px';
+  });
+  el.addEventListener('mouseleave',()=>{tp.style.display='none'});
+});
+</script>
+</body>
+</html>

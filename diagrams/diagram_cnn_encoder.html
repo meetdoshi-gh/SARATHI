@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SARATHI — CNN Vision Encoder</title>
+<style>
+html { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,.15); border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: rgba(255,255,255,.3); }
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@600;700;800&family=DM+Mono:wght@400;500&display=swap');
+
+body {
+  margin: 0; padding: 28px 24px;
+  background: var(--bg); color: var(--ink);
+  font-family: 'Inter', system-ui, sans-serif;
+  transition: background .3s, color .3s;
+
+  --bg: #0c0b09; --bg2: #1a1714;
+  --ink: #f0ede6; --ink2: #b8b4aa; --ink3: #888580;
+  --bdr: rgba(255,255,255,.10);
+  --sh: 0 2px 8px rgba(0,0,0,.6);
+
+  /* Encoder uses emerald family with stage shading; pool uses slate */
+  --in-bg: #0d1a2e; --in-bd: #2563EB; --in-h: #93c5fd; --in-s: #60a5fa;
+  --c1-bg: #0d261a; --c1-bd: #059669; --c1-h: #6ee7b7; --c1-s: #34d399;
+  --c2-bg: #0a3326; --c2-bd: #10B981; --c2-h: #6ee7b7; --c2-s: #34d399;
+  --c3-bg: #064030; --c3-bd: #34D399; --c3-h: #a7f3d0; --c3-s: #6ee7b7;
+  --pool-bg:#131316; --pool-bd:#6B7280; --pool-h: #d1d5db; --pool-s: #9ca3af;
+  --out-bg: #1f1a07; --out-bd: #D97706; --out-h: #fcd34d; --out-s: #f59e0b;
+  --gn-bg: #2e1507; --gn-bd: #EA580C; --gn-h: #fdba74; --gn-s: #f97316;
+}
+body.light {
+  --bg: #f5f3ef; --bg2: #ffffff;
+  --ink: #1a1714; --ink2: #44403c; --ink3: #78716c;
+  --bdr: rgba(0,0,0,.12);
+  --sh: 0 2px 8px rgba(0,0,0,.10);
+
+  --in-bg: #dbeafe; --in-bd: #1D4ED8; --in-h: #1e3a8a; --in-s: #2563EB;
+  --c1-bg: #d1fae5; --c1-bd: #047857; --c1-h: #064e3b; --c1-s: #059669;
+  --c2-bg: #a7f3d0; --c2-bd: #047857; --c2-h: #064e3b; --c2-s: #059669;
+  --c3-bg: #6ee7b7; --c3-bd: #047857; --c3-h: #064e3b; --c3-s: #059669;
+  --pool-bg:#f3f4f6; --pool-bd:#4B5563; --pool-h:#1f2937; --pool-s:#6B7280;
+  --out-bg: #fef3c7; --out-bd: #B45309; --out-h: #78350f; --out-s: #D97706;
+  --gn-bg: #ffedd5; --gn-bd: #C2410C; --gn-h: #7c2d12; --gn-s: #EA580C;
+}
+
+.tg { position: fixed; top: 16px; right: 16px; z-index: 100; width: 36px; height: 36px; border-radius: 50%; background: var(--bg2); border: 1px solid var(--bdr); cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; box-shadow: var(--sh); transition: transform .15s; }
+.tg:hover { transform: scale(1.08); }
+
+.title { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 800; margin: 0 0 6px 0; color: var(--ink); }
+.subtitle { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--ink3); margin: 0 0 24px 0; letter-spacing: .12em; text-transform: uppercase; }
+
+.nb { stroke-width: 1.5; transition: filter .2s; }
+.nb-in    { fill: var(--in-bg);    stroke: var(--in-bd); }
+.nb-c1    { fill: var(--c1-bg);    stroke: var(--c1-bd); }
+.nb-c2    { fill: var(--c2-bg);    stroke: var(--c2-bd); }
+.nb-c3    { fill: var(--c3-bg);    stroke: var(--c3-bd); }
+.nb-pool  { fill: var(--pool-bg);  stroke: var(--pool-bd); }
+.nb-out   { fill: var(--out-bg);   stroke: var(--out-bd); }
+.nb-gn    { fill: var(--gn-bg);    stroke: var(--gn-bd); stroke-width: 2.5; filter: drop-shadow(0 0 10px rgba(234,88,12,.4)); }
+
+text { font-family: 'DM Mono', monospace; }
+.nl { font-size: 9px; letter-spacing: .14em; text-transform: uppercase; font-weight: 500; }
+.nt { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; }
+.ns { font-size: 10px; }
+.dim-label { font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500; }
+
+.tl-in   { fill: var(--in-s); }    .tt-in   { fill: var(--in-h); }
+.tl-c1   { fill: var(--c1-s); }    .tt-c1   { fill: var(--c1-h); }
+.tl-c2   { fill: var(--c2-s); }    .tt-c2   { fill: var(--c2-h); }
+.tl-c3   { fill: var(--c3-s); }    .tt-c3   { fill: var(--c3-h); }
+.tl-pool { fill: var(--pool-s); }  .tt-pool { fill: var(--pool-h); }
+.tl-out  { fill: var(--out-s); }   .tt-out  { fill: var(--out-h); }
+.tl-gn   { fill: var(--gn-s); }    .tt-gn   { fill: var(--gn-h); }
+
+.ay      { fill: none; stroke: var(--ink2); stroke-width: 2; opacity: .6; }
+.alab    { font-size: 9px; fill: var(--ink3); text-transform: uppercase; letter-spacing: .12em; font-family: 'DM Mono', monospace; }
+
+g[data-tip] { cursor: default; }
+g[data-tip]:hover .nb { filter: brightness(1.18); }
+g[data-tip]:hover .nb-gn { filter: brightness(1.18) drop-shadow(0 0 14px rgba(234,88,12,.6)); }
+</style>
+</head>
+<body>
+
+<button class="tg" onclick="tt()" aria-label="Toggle theme">🌙</button>
+
+<div style="width:100%;max-width:1320px;margin:0 auto;">
+  <h1 class="title">CNN Vision Encoder — Layer-by-Layer</h1>
+  <p class="subtitle">Custom 3-block GroupNorm CNN · ~72k parameters · 120×160×1 → 128-d feature vector</p>
+
+  <svg viewBox="0 0 1320 540" width="100%" style="display:block;" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="ah" viewBox="0 -4 8 8" refX="6" refY="0" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,-4 L8,0 L0,4" fill="none" stroke="currentColor" stroke-width="2"/>
+      </marker>
+      <linearGradient id="gnGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#7B35CC"/>
+        <stop offset="50%" stop-color="#DB2777"/>
+        <stop offset="100%" stop-color="#EA580C"/>
+      </linearGradient>
+    </defs>
+
+    <!-- ═══ Stage 1 — Input ═══ -->
+    <g data-tip="Input observation: a single grayscale frame from one of the stereo cameras at 120 (height) × 160 (width). The 4:3 aspect ratio matches typical automotive cameras. Grayscale was forced by memory constraints, but it sharpened the perceptual challenge — color cues for lane markings disappear.">
+      <!-- Cuboid representation (front face + back hint) -->
+      <rect x="40" y="160" width="80" height="100" rx="4" fill="var(--in-bg)" stroke="var(--in-bd)" stroke-width="1.5" opacity=".5"/>
+      <rect x="35" y="155" width="80" height="100" rx="4" fill="var(--in-bg)" stroke="var(--in-bd)" stroke-width="1.5"/>
+      <text class="nl tl-in" x="35" y="148">INPUT</text>
+      <text class="dim-label tt-in" x="35" y="278">1 × 120 × 160</text>
+      <text class="ns tl-in" x="35" y="294">grayscale frame</text>
+    </g>
+
+    <!-- ═══ Stage 2 — Conv1 (block 1) ═══ -->
+    <g data-tip="Conv2d(in=1, out=32, kernel=8, stride=4). Large kernel with aggressive stride aggregates broad spatial context immediately — appropriate for a low-resolution input where fine-grained features are bandwidth-limited. Output: 32 × 29 × 38.">
+      <rect class="nb nb-c1" x="170" y="155" width="100" height="120" rx="6"/>
+      <text class="nl tl-c1" x="180" y="178">BLOCK 1</text>
+      <text class="nt tt-c1" x="180" y="200">Conv2d</text>
+      <text class="ns tl-c1" x="180" y="222">k=8, s=4</text>
+      <text class="ns tl-c1" x="180" y="238">1 → 32 ch</text>
+      <text class="ns tl-c1" x="180" y="262" style="fill:var(--c1-h);font-weight:700;">+ GN(8,32)</text>
+      <text class="dim-label tt-c1" x="180" y="295">32 × 29 × 38</text>
+    </g>
+
+    <!-- Stage 3 — MaxPool1 -->
+    <g data-tip="MaxPool2d(kernel=2, stride=2). Standard non-trainable downsampling — halves spatial dims, preserves most discriminative activation per 2×2 region. Output: 32 × 14 × 19.">
+      <rect class="nb nb-pool" x="320" y="180" width="80" height="80" rx="6"/>
+      <text class="nl tl-pool" x="332" y="202">POOL</text>
+      <text class="nt tt-pool" x="332" y="222">MaxPool</text>
+      <text class="ns tl-pool" x="332" y="244">2×2, s=2</text>
+      <text class="dim-label tt-pool" x="332" y="278">32 × 14 × 19</text>
+    </g>
+
+    <!-- Stage 4 — Conv2 -->
+    <g data-tip="Conv2d(in=32, out=64, kernel=4, stride=2). Doubles channel depth while halving spatial. The trade-off — more semantic richness, less spatial resolution — is the standard CNN inductive bias. Output: 64 × 6 × 8.">
+      <rect class="nb nb-c2" x="450" y="160" width="100" height="115" rx="6"/>
+      <text class="nl tl-c2" x="460" y="183">BLOCK 2</text>
+      <text class="nt tt-c2" x="460" y="205">Conv2d</text>
+      <text class="ns tl-c2" x="460" y="227">k=4, s=2</text>
+      <text class="ns tl-c2" x="460" y="243">32 → 64 ch</text>
+      <text class="ns tl-c2" x="460" y="263" style="fill:var(--c2-h);font-weight:700;">+ GN(8,64)</text>
+      <text class="dim-label tt-c2" x="460" y="295">64 × 6 × 8</text>
+    </g>
+
+    <!-- Stage 5 — MaxPool2 -->
+    <g data-tip="MaxPool2d(kernel=2, stride=2). Aggressive second downsampling — given the already small feature map at this stage, the pooling operation forces the network to identify only the strongest local activations. Output: 64 × 3 × 4.">
+      <rect class="nb nb-pool" x="600" y="190" width="80" height="65" rx="6"/>
+      <text class="nl tl-pool" x="612" y="212">POOL</text>
+      <text class="nt tt-pool" x="612" y="232">MaxPool</text>
+      <text class="dim-label tt-pool" x="612" y="278">64 × 3 × 4</text>
+    </g>
+
+    <!-- Stage 6 — Conv3 -->
+    <g data-tip="Conv2d(in=64, out=64, kernel=3, stride=1). Final spatial reduction to a near-degenerate map (1×2) that nonetheless carries 64 deep semantic channels. The output is essentially a context vector with two spatial 'positions' encoding rough left/right asymmetry of the scene.">
+      <rect class="nb nb-c3" x="730" y="170" width="100" height="105" rx="6"/>
+      <text class="nl tl-c3" x="740" y="193">BLOCK 3</text>
+      <text class="nt tt-c3" x="740" y="215">Conv2d</text>
+      <text class="ns tl-c3" x="740" y="237">k=3, s=1</text>
+      <text class="ns tl-c3" x="740" y="253">64 → 64 ch</text>
+      <text class="ns tl-c3" x="740" y="270" style="fill:var(--c3-h);font-weight:700;font-size:9px;">+ GN(8,64)</text>
+      <text class="dim-label tt-c3" x="740" y="295">64 × 1 × 2</text>
+    </g>
+
+    <!-- Stage 7 — Flatten -->
+    <g data-tip="Reshape the 64×1×2 feature map into a flat 128-dimensional vector. This becomes the per-camera feature; left and right cameras share weights and produce 128-dim each, then concatenated with the 10-dim nav vector → fused embedding fed to the policy.">
+      <rect class="nb nb-out" x="880" y="195" width="100" height="55" rx="6"/>
+      <text class="nl tl-out" x="892" y="217">OUTPUT</text>
+      <text class="nt tt-out" x="892" y="240">Flatten</text>
+      <text class="dim-label tt-out" x="892" y="278" style="font-weight:700;">128-d</text>
+    </g>
+
+    <!-- Forward arrows between stages, all at y=215 (centerline) -->
+    <!--
+      VERIFIED: y=215 sits inside every stage rect (input 155-255, c1 155-275, pool 180-260, c2 160-275, pool2 190-255, c3 170-275, out 195-250). Arrows run between right-edge of N to left-edge of N+1 with ~10px clearance each side. No overlapping nodes.
+    -->
+    <g style="color: var(--ink2);">
+      <path class="ay" d="M 116 215 L 169 215" marker-end="url(#ah)"/>
+      <path class="ay" d="M 271 215 L 319 215" marker-end="url(#ah)"/>
+      <path class="ay" d="M 401 215 L 449 215" marker-end="url(#ah)"/>
+      <path class="ay" d="M 551 215 L 599 215" marker-end="url(#ah)"/>
+      <path class="ay" d="M 681 215 L 729 215" marker-end="url(#ah)"/>
+      <path class="ay" d="M 831 215 L 879 215" marker-end="url(#ah)"/>
+    </g>
+
+    <text class="alab" x="142" y="208" text-anchor="middle">conv</text>
+    <text class="alab" x="296" y="208" text-anchor="middle">pool</text>
+    <text class="alab" x="425" y="208" text-anchor="middle">conv</text>
+    <text class="alab" x="575" y="208" text-anchor="middle">pool</text>
+    <text class="alab" x="705" y="208" text-anchor="middle">conv</text>
+    <text class="alab" x="855" y="208" text-anchor="middle">flatten</text>
+
+    <!-- ═══ "Why GroupNorm?" callout card ═══ -->
+    <g data-tip="GroupNorm normalises across groups of channels per sample, with no dependence on batch statistics. This is critical in RL where replay-buffer batches are highly correlated (many samples from the same episode), making BatchNorm's running statistics misleading.">
+      <rect class="nb nb-gn" x="1030" y="135" width="270" height="160" rx="10"/>
+      <rect x="1030" y="130" width="270" height="3" rx="1.5" fill="url(#gnGrad)" opacity=".9"/>
+      <text class="nl tl-gn" x="1048" y="160">DESIGN DECISION</text>
+      <text class="nt tt-gn" x="1048" y="184">Why GroupNorm?</text>
+      <text class="ns tl-gn" x="1048" y="210">BatchNorm fails because</text>
+      <text class="ns tl-gn" x="1048" y="226">RL replay batches are</text>
+      <text class="ns tl-gn" x="1048" y="242">highly correlated.</text>
+      <line x1="1048" y1="255" x2="1280" y2="255" stroke="var(--gn-bd)" stroke-width="0.5" opacity=".4"/>
+      <text class="ns tl-gn" x="1048" y="275" style="fill:var(--gn-h);font-weight:700;">→ per-sample, per-group</text>
+      <text class="ns tl-gn" x="1048" y="288" style="fill:var(--gn-h);font-weight:700;">    no batch dependence</text>
+    </g>
+
+    <!-- ═══ Spatial trace ribbon at bottom ═══ -->
+    <g>
+      <text class="nl" x="40" y="370" style="fill:var(--ink2);font-weight:600;">SPATIAL TRACE — height × width through the encoder</text>
+      <line x1="40" y1="380" x2="980" y2="380" stroke="var(--bdr)" stroke-width="1"/>
+
+      <!-- Row showing spatial sizes scaled visually -->
+      <g transform="translate(40, 400)">
+        <!-- 120x160 -->
+        <rect x="0" y="0" width="80" height="60" rx="2" fill="none" stroke="var(--in-bd)" stroke-width="1.5"/>
+        <text class="ns" x="0" y="78" style="fill:var(--in-s);">120×160</text>
+        <text class="ns" x="0" y="92" style="fill:var(--ink3);">input</text>
+      </g>
+      <g transform="translate(170, 412)">
+        <!-- 29x38 -->
+        <rect x="0" y="0" width="48" height="36" rx="2" fill="none" stroke="var(--c1-bd)" stroke-width="1.5"/>
+        <text class="ns" x="0" y="54" style="fill:var(--c1-s);">29×38</text>
+        <text class="ns" x="0" y="68" style="fill:var(--ink3);">×32 ch</text>
+      </g>
+      <g transform="translate(320, 418)">
+        <!-- 14x19 -->
+        <rect x="0" y="0" width="36" height="28" rx="2" fill="none" stroke="var(--pool-bd)" stroke-width="1.5"/>
+        <text class="ns" x="0" y="46" style="fill:var(--pool-s);">14×19</text>
+        <text class="ns" x="0" y="60" style="fill:var(--ink3);">×32 ch</text>
+      </g>
+      <g transform="translate(450, 425)">
+        <!-- 6x8 -->
+        <rect x="0" y="0" width="22" height="18" rx="2" fill="none" stroke="var(--c2-bd)" stroke-width="1.5"/>
+        <text class="ns" x="0" y="36" style="fill:var(--c2-s);">6×8</text>
+        <text class="ns" x="0" y="50" style="fill:var(--ink3);">×64 ch</text>
+      </g>
+      <g transform="translate(600, 432)">
+        <!-- 3x4 -->
+        <rect x="0" y="0" width="14" height="12" rx="2" fill="none" stroke="var(--pool-bd)" stroke-width="1.5"/>
+        <text class="ns" x="0" y="30" style="fill:var(--pool-s);">3×4</text>
+        <text class="ns" x="0" y="44" style="fill:var(--ink3);">×64 ch</text>
+      </g>
+      <g transform="translate(730, 437)">
+        <!-- 1x2 -->
+        <rect x="0" y="0" width="8" height="6" rx="2" fill="none" stroke="var(--c3-bd)" stroke-width="1.5"/>
+        <text class="ns" x="0" y="24" style="fill:var(--c3-s);">1×2</text>
+        <text class="ns" x="0" y="38" style="fill:var(--ink3);">×64 ch</text>
+      </g>
+      <g transform="translate(880, 437)">
+        <line x1="0" y1="3" x2="80" y2="3" stroke="var(--out-bd)" stroke-width="3" stroke-linecap="round"/>
+        <text class="ns" x="0" y="24" style="fill:var(--out-s);">128-d</text>
+        <text class="ns" x="0" y="38" style="fill:var(--ink3);">flatten</text>
+      </g>
+    </g>
+
+  </svg>
+
+  <!-- Legend -->
+  <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-top:14px;margin-top:18px;border-top:1px solid var(--bdr);font-family:'DM Mono',monospace;font-size:11px;color:var(--ink3);">
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:9px;height:9px;border-radius:2px;background:#2563EB;"></div>Input</div>
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:9px;height:9px;border-radius:2px;background:#059669;"></div>Conv block (with GN)</div>
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:9px;height:9px;border-radius:2px;background:#6B7280;"></div>MaxPool</div>
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:9px;height:9px;border-radius:2px;background:#D97706;"></div>Output</div>
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:9px;height:9px;border-radius:2px;background:#EA580C;box-shadow:0 0 6px rgba(234,88,12,.5);"></div>Design decision</div>
+    <span style="margin-left:auto;font-size:9px;color:var(--ink3);">meetdoshi.me · SARATHI</span>
+  </div>
+</div>
+
+<div id="tp" style="display:none;position:fixed;max-width:280px;background:var(--bg2);border:1px solid var(--bdr);border-radius:8px;padding:10px 13px;font-size:10px;color:var(--ink2);line-height:1.7;z-index:200;pointer-events:none;font-family:'DM Mono',monospace;white-space:normal;word-break:break-word;box-shadow:0 8px 32px rgba(0,0,0,.5);"></div>
+
+<script>
+let dark = true;
+function tt() {
+  dark = !dark;
+  document.body.className = dark ? '' : 'light';
+  document.querySelector('.tg').textContent = dark ? '🌙' : '☀️';
+}
+
+const tp = document.getElementById('tp');
+const PAD = 14;
+document.querySelectorAll('[data-tip]').forEach(el => {
+  el.style.cursor = 'default';
+  el.addEventListener('mouseenter', e => {
+    tp.textContent = el.dataset.tip;
+    tp.style.left = '-9999px'; tp.style.top = '-9999px';
+    tp.style.display = 'block';
+  });
+  el.addEventListener('mousemove', e => {
+    const tw = tp.offsetWidth, th = tp.offsetHeight;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const cx = e.clientX, cy = e.clientY;
+    let left = cx + PAD, top = cy - th - PAD;
+    if (left + tw > vw - 8) left = cx - tw - PAD;
+    if (top < 8) top = cy + PAD;
+    if (left < 8) left = 8;
+    if (left + tw > vw - 8) left = vw - tw - 8;
+    if (top < 8) top = 8;
+    if (top + th > vh - 8) top = vh - th - 8;
+    tp.style.left = left + 'px';
+    tp.style.top = top + 'px';
+  });
+  el.addEventListener('mouseleave', () => { tp.style.display = 'none'; });
+});
+</script>
+</body>
+</html>

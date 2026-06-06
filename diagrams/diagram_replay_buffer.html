@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SARATHI — Replay Buffer Redesign</title>
+<style>
+html { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,.15); border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: rgba(255,255,255,.3); }
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@600;700;800&family=DM+Mono:wght@400;500&display=swap');
+
+body {
+  margin: 0; padding: 28px 24px;
+  background: var(--bg); color: var(--ink);
+  font-family: 'Inter', system-ui, sans-serif;
+  transition: background .3s, color .3s;
+
+  --bg: #0c0b09; --bg2: #1a1714;
+  --ink: #f0ede6; --ink2: #b8b4aa; --ink3: #888580;
+  --bdr: rgba(255,255,255,.10);
+  --sh: 0 2px 8px rgba(0,0,0,.6);
+
+  /* SAC standard - sky blue family */
+  --sac-bg: #0f1f2e; --sac-bd: #0284C7; --sac-h: #7dd3fc; --sac-s: #38bdf8;
+  --sac-cell:#1e3a5f;
+  /* RSAC episode buffer - hot pink family */
+  --rsac-bg:#2e0f1f; --rsac-bd:#DB2777; --rsac-h:#f9a8d4; --rsac-s:#ec4899;
+  --rsac-cell:#7e1e4d;
+
+  /* Episode colors (4 visually distinct) */
+  --ep1: #38bdf8;  /* cyan */
+  --ep2: #fbbf24;  /* amber */
+  --ep3: #34d399;  /* emerald */
+  --ep4: #a78bfa;  /* violet */
+  --ep5: #fb7185;  /* rose */
+
+  /* Highlight color (selected fragment) - burning orange */
+  --sel-bd: #EA580C; --sel-glow: rgba(234,88,12,.45);
+
+  /* Callout */
+  --note-bg:#1f1a07; --note-bd:#D97706; --note-h:#fcd34d; --note-s:#f59e0b;
+}
+body.light {
+  --bg: #f5f3ef; --bg2: #ffffff;
+  --ink: #1a1714; --ink2: #44403c; --ink3: #78716c;
+  --bdr: rgba(0,0,0,.12);
+  --sh: 0 2px 8px rgba(0,0,0,.10);
+
+  --sac-bg: #e0f2fe; --sac-bd: #0369A1; --sac-h: #0c4a6e; --sac-s: #0284C7;
+  --sac-cell:#bae6fd;
+  --rsac-bg:#fce7f3; --rsac-bd:#BE185D; --rsac-h:#831843; --rsac-s:#DB2777;
+  --rsac-cell:#fbcfe8;
+
+  --ep1: #0284C7; --ep2: #D97706; --ep3: #059669; --ep4: #7C3AED; --ep5: #E11D48;
+  --sel-bd: #C2410C; --sel-glow: rgba(234,88,12,.30);
+  --note-bg: #fef3c7; --note-bd: #B45309; --note-h: #78350f; --note-s: #D97706;
+}
+
+.tg { position: fixed; top: 16px; right: 16px; z-index: 100; width: 36px; height: 36px; border-radius: 50%; background: var(--bg2); border: 1px solid var(--bdr); cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; box-shadow: var(--sh); transition: transform .15s; }
+.tg:hover { transform: scale(1.08); }
+
+.title { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 800; margin: 0 0 6px 0; color: var(--ink); }
+.subtitle { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--ink3); margin: 0 0 24px 0; letter-spacing: .12em; text-transform: uppercase; }
+
+.section-title { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; }
+.section-sub   { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
+
+.nb { stroke-width: 1.5; transition: filter .2s; }
+.nb-sac  { fill: var(--sac-bg);  stroke: var(--sac-bd); }
+.nb-rsac { fill: var(--rsac-bg); stroke: var(--rsac-bd); }
+.nb-note { fill: var(--note-bg); stroke: var(--note-bd); }
+
+.cell-base { stroke-width: 1; }
+.cell-sel  { stroke: var(--sel-bd); stroke-width: 2.5; filter: drop-shadow(0 0 6px var(--sel-glow)); }
+
+text { font-family: 'DM Mono', monospace; }
+.nl { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; font-weight: 500; }
+.nt { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; }
+.ns { font-size: 11px; }
+.tl-sac  { fill: var(--sac-s); }   .tt-sac  { fill: var(--sac-h); }
+.tl-rsac { fill: var(--rsac-s); }  .tt-rsac { fill: var(--rsac-h); }
+.tl-note { fill: var(--note-s); }  .tt-note { fill: var(--note-h); }
+
+.ay { fill: none; stroke: var(--ink2); stroke-width: 2; opacity: .55; }
+.alab { font-size: 9px; fill: var(--ink3); text-transform: uppercase; letter-spacing: .12em; font-family: 'DM Mono', monospace; }
+
+g[data-tip] { cursor: default; }
+g[data-tip]:hover .nb { filter: brightness(1.18); }
+</style>
+</head>
+<body>
+
+<button class="tg" onclick="tt()" aria-label="Toggle theme">🌙</button>
+
+<div style="width:100%;max-width:1240px;margin:0 auto;">
+  <h1 class="title">Replay Buffer Redesign — Transition vs Episode-Indexed</h1>
+  <p class="subtitle">Why the recurrent variant required a complete buffer rewrite — not just a network change</p>
+
+  <svg viewBox="0 0 1240 785" width="100%" style="display:block;" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="ah" viewBox="0 -4 8 8" refX="6" refY="0" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,-4 L8,0 L0,4" fill="none" stroke="currentColor" stroke-width="2"/>
+      </marker>
+    </defs>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- ═══ TOP SECTION — Standard SAC transition buffer       ═══ -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+
+    <!-- Section heading -->
+    <text class="section-title tt-sac" x="40" y="40">Standard SAC — Transition Buffer</text>
+    <text class="section-sub tl-sac" x="40" y="60">Flat deque of (s, a, r, s', d) tuples · sampled i.i.d.</text>
+
+    <!-- Container box -->
+    <rect class="nb nb-sac" x="40" y="80" width="1160" height="170" rx="10"/>
+    <text class="nl tl-sac" x="58" y="103">BUFFER (capacity = batches_per_epoch × batch_size × epochs_in_buffer)</text>
+
+    <!-- Row of transition cells (24 cells, x=58 to x=58+24*46=1162) -->
+    <g transform="translate(58, 130)">
+      <!-- Cell 0 - episode 1 -->
+      <rect class="cell-base" x="0"   y="0" width="42" height="42" rx="4" fill="var(--ep1)" opacity=".7" stroke="var(--ep1)"/>
+      <rect class="cell-base" x="46"  y="0" width="42" height="42" rx="4" fill="var(--ep1)" opacity=".7" stroke="var(--ep1)"/>
+      <rect class="cell-base" x="92"  y="0" width="42" height="42" rx="4" fill="var(--ep1)" opacity=".7" stroke="var(--ep1)"/>
+      <rect class="cell-base" x="138" y="0" width="42" height="42" rx="4" fill="var(--ep1)" opacity=".7" stroke="var(--ep1)"/>
+      <rect class="cell-base" x="184" y="0" width="42" height="42" rx="4" fill="var(--ep1)" opacity=".7" stroke="var(--ep1)"/>
+      <!-- Cell 5 - episode 2 -->
+      <rect class="cell-base" x="230" y="0" width="42" height="42" rx="4" fill="var(--ep2)" opacity=".7" stroke="var(--ep2)"/>
+      <rect class="cell-base" x="276" y="0" width="42" height="42" rx="4" fill="var(--ep2)" opacity=".7" stroke="var(--ep2)"/>
+      <rect class="cell-base" x="322" y="0" width="42" height="42" rx="4" fill="var(--ep2)" opacity=".7" stroke="var(--ep2)"/>
+      <rect class="cell-base" x="368" y="0" width="42" height="42" rx="4" fill="var(--ep2)" opacity=".7" stroke="var(--ep2)"/>
+      <!-- Cell 9 - episode 3 -->
+      <rect class="cell-base" x="414" y="0" width="42" height="42" rx="4" fill="var(--ep3)" opacity=".7" stroke="var(--ep3)"/>
+      <rect class="cell-base" x="460" y="0" width="42" height="42" rx="4" fill="var(--ep3)" opacity=".7" stroke="var(--ep3)"/>
+      <rect class="cell-base" x="506" y="0" width="42" height="42" rx="4" fill="var(--ep3)" opacity=".7" stroke="var(--ep3)"/>
+      <rect class="cell-base" x="552" y="0" width="42" height="42" rx="4" fill="var(--ep3)" opacity=".7" stroke="var(--ep3)"/>
+      <rect class="cell-base" x="598" y="0" width="42" height="42" rx="4" fill="var(--ep3)" opacity=".7" stroke="var(--ep3)"/>
+      <rect class="cell-base" x="644" y="0" width="42" height="42" rx="4" fill="var(--ep3)" opacity=".7" stroke="var(--ep3)"/>
+      <!-- Cell 15 - episode 4 -->
+      <rect class="cell-base" x="690" y="0" width="42" height="42" rx="4" fill="var(--ep4)" opacity=".7" stroke="var(--ep4)"/>
+      <rect class="cell-base" x="736" y="0" width="42" height="42" rx="4" fill="var(--ep4)" opacity=".7" stroke="var(--ep4)"/>
+      <rect class="cell-base" x="782" y="0" width="42" height="42" rx="4" fill="var(--ep4)" opacity=".7" stroke="var(--ep4)"/>
+      <rect class="cell-base" x="828" y="0" width="42" height="42" rx="4" fill="var(--ep4)" opacity=".7" stroke="var(--ep4)"/>
+      <!-- Cell 19 - episode 5 -->
+      <rect class="cell-base" x="874" y="0" width="42" height="42" rx="4" fill="var(--ep5)" opacity=".7" stroke="var(--ep5)"/>
+      <rect class="cell-base" x="920" y="0" width="42" height="42" rx="4" fill="var(--ep5)" opacity=".7" stroke="var(--ep5)"/>
+      <rect class="cell-base" x="966" y="0" width="42" height="42" rx="4" fill="var(--ep5)" opacity=".7" stroke="var(--ep5)"/>
+      <rect class="cell-base" x="1012" y="0" width="42" height="42" rx="4" fill="var(--ep5)" opacity=".7" stroke="var(--ep5)"/>
+      <rect class="cell-base" x="1058" y="0" width="42" height="42" rx="4" fill="var(--ep5)" opacity=".7" stroke="var(--ep5)"/>
+
+      <!-- Highlighted random samples (4 i.i.d. picks scattered across the buffer) -->
+      <rect class="cell-sel" x="92"   y="0" width="42" height="42" rx="4" fill="none"/>
+      <rect class="cell-sel" x="368"  y="0" width="42" height="42" rx="4" fill="none"/>
+      <rect class="cell-sel" x="690"  y="0" width="42" height="42" rx="4" fill="none"/>
+      <rect class="cell-sel" x="1012" y="0" width="42" height="42" rx="4" fill="none"/>
+    </g>
+
+    <!-- Annotation showing i.i.d. random sampling -->
+    <text class="alab" x="58" y="195" style="fill:var(--ink2);">↑ each cell = one (s, a, r, s', d) tuple</text>
+    <text class="alab" x="58" y="212" style="fill:var(--sel-bd);font-weight:700;">★ orange outline = i.i.d. random sample · batch of B transitions</text>
+    <text class="alab" x="58" y="229" style="fill:var(--ink3);">Eviction: oldest tuples dropped first when buffer at capacity</text>
+
+    <!-- Tooltip for the whole top section (capture broad area) -->
+    <rect x="40" y="80" width="1160" height="170" rx="10" fill="transparent" data-tip="Standard SAC stores experiences as flat tuples in a single deque. Sampling pulls batch_size random tuples uniformly and trains as if each transition were independent — Markov property at the transition level.">
+    </rect>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- ═══ BOTTOM SECTION — RSAC episode-indexed buffer       ═══ -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+
+    <text class="section-title tt-rsac" x="40" y="310">SARATHI RSAC — Episode-Indexed Buffer</text>
+    <text class="section-sub tl-rsac" x="40" y="330">Deque of episodes · sampled by episode, then random offset, then length-T fragment</text>
+
+    <!-- Container -->
+    <rect class="nb nb-rsac" x="40" y="350" width="1160" height="290" rx="10"/>
+    <text class="nl tl-rsac" x="58" y="373">BUFFER (capacity counted in transitions; episodes evicted whole when overflow)</text>
+
+    <!-- Episode 1 - shorter (10 cells) -->
+    <g transform="translate(58, 395)">
+      <text class="alab" x="-10" y="22" text-anchor="end" style="fill:var(--ep1);font-weight:700;">ep 1</text>
+      <rect class="cell-base" x="0"   y="5" width="32" height="32" rx="3" fill="var(--ep1)" opacity=".7" stroke="var(--ep1)"/>
+      <rect class="cell-base" x="36"  y="5" width="32" height="32" rx="3" fill="var(--ep1)" opacity=".7" stroke="var(--ep1)"/>
+      <rect class="cell-base" x="72"  y="5" width="32" height="32" rx="3" fill="var(--ep1)" opacity=".7" stroke="var(--ep1)"/>
+      <rect class="cell-base" x="108" y="5" width="32" height="32" rx="3" fill="var(--ep1)" opacity=".7" stroke="var(--ep1)"/>
+      <rect class="cell-base" x="144" y="5" width="32" height="32" rx="3" fill="var(--ep1)" opacity=".7" stroke="var(--ep1)"/>
+      <rect class="cell-base" x="180" y="5" width="32" height="32" rx="3" fill="var(--ep1)" opacity=".7" stroke="var(--ep1)"/>
+      <rect class="cell-base" x="216" y="5" width="32" height="32" rx="3" fill="var(--ep1)" opacity=".7" stroke="var(--ep1)"/>
+      <rect class="cell-base" x="252" y="5" width="32" height="32" rx="3" fill="var(--ep1)" opacity=".7" stroke="var(--ep1)"/>
+      <rect class="cell-base" x="288" y="5" width="32" height="32" rx="3" fill="var(--ep1)" opacity=".7" stroke="var(--ep1)"/>
+      <rect class="cell-base" x="324" y="5" width="32" height="32" rx="3" fill="var(--ep1)" opacity=".7" stroke="var(--ep1)"/>
+    </g>
+
+    <!-- Episode 2 - longer (20 cells, with a 16-cell fragment highlighted starting at offset 3) -->
+    <g transform="translate(58, 445)">
+      <text class="alab" x="-10" y="22" text-anchor="end" style="fill:var(--ep2);font-weight:700;">ep 2</text>
+      <rect class="cell-base" x="0"   y="5" width="32" height="32" rx="3" fill="var(--ep2)" opacity=".4" stroke="var(--ep2)"/>
+      <rect class="cell-base" x="36"  y="5" width="32" height="32" rx="3" fill="var(--ep2)" opacity=".4" stroke="var(--ep2)"/>
+      <rect class="cell-base" x="72"  y="5" width="32" height="32" rx="3" fill="var(--ep2)" opacity=".4" stroke="var(--ep2)"/>
+      <!-- Fragment start (offset = 3, length T) -->
+      <rect class="cell-base" x="108" y="5" width="32" height="32" rx="3" fill="var(--ep2)" opacity=".85" stroke="var(--ep2)"/>
+      <rect class="cell-base" x="144" y="5" width="32" height="32" rx="3" fill="var(--ep2)" opacity=".85" stroke="var(--ep2)"/>
+      <rect class="cell-base" x="180" y="5" width="32" height="32" rx="3" fill="var(--ep2)" opacity=".85" stroke="var(--ep2)"/>
+      <rect class="cell-base" x="216" y="5" width="32" height="32" rx="3" fill="var(--ep2)" opacity=".85" stroke="var(--ep2)"/>
+      <rect class="cell-base" x="252" y="5" width="32" height="32" rx="3" fill="var(--ep2)" opacity=".85" stroke="var(--ep2)"/>
+      <rect class="cell-base" x="288" y="5" width="32" height="32" rx="3" fill="var(--ep2)" opacity=".85" stroke="var(--ep2)"/>
+      <rect class="cell-base" x="324" y="5" width="32" height="32" rx="3" fill="var(--ep2)" opacity=".85" stroke="var(--ep2)"/>
+      <rect class="cell-base" x="360" y="5" width="32" height="32" rx="3" fill="var(--ep2)" opacity=".85" stroke="var(--ep2)"/>
+      <rect class="cell-base" x="396" y="5" width="32" height="32" rx="3" fill="var(--ep2)" opacity=".85" stroke="var(--ep2)"/>
+      <rect class="cell-base" x="432" y="5" width="32" height="32" rx="3" fill="var(--ep2)" opacity=".85" stroke="var(--ep2)"/>
+      <rect class="cell-base" x="468" y="5" width="32" height="32" rx="3" fill="var(--ep2)" opacity=".85" stroke="var(--ep2)"/>
+      <rect class="cell-base" x="504" y="5" width="32" height="32" rx="3" fill="var(--ep2)" opacity=".85" stroke="var(--ep2)"/>
+      <rect class="cell-base" x="540" y="5" width="32" height="32" rx="3" fill="var(--ep2)" opacity=".85" stroke="var(--ep2)"/>
+      <rect class="cell-base" x="576" y="5" width="32" height="32" rx="3" fill="var(--ep2)" opacity=".85" stroke="var(--ep2)"/>
+      <rect class="cell-base" x="612" y="5" width="32" height="32" rx="3" fill="var(--ep2)" opacity=".85" stroke="var(--ep2)"/>
+      <!-- Last 4 cells unfaded -->
+      <rect class="cell-base" x="648" y="5" width="32" height="32" rx="3" fill="var(--ep2)" opacity=".4" stroke="var(--ep2)"/>
+      <rect class="cell-base" x="684" y="5" width="32" height="32" rx="3" fill="var(--ep2)" opacity=".4" stroke="var(--ep2)"/>
+      <rect class="cell-base" x="720" y="5" width="32" height="32" rx="3" fill="var(--ep2)" opacity=".4" stroke="var(--ep2)"/>
+
+      <!-- Selection box around the 16-cell fragment (offset=3, length=16) -->
+      <!-- x: 108-4=104, y: 5-4=1, w: 16*32 + 15*4 + 8 = 580, h: 32+8=40 -->
+      <rect class="cell-sel" x="104" y="1" width="580" height="40" rx="5" fill="none"/>
+      <text class="alab" x="394" y="-3" text-anchor="middle" style="fill:var(--sel-bd);font-weight:700;">★ length-T fragment from random offset</text>
+    </g>
+
+    <!-- Episode 3 - medium (15 cells) -->
+    <g transform="translate(58, 510)">
+      <text class="alab" x="-10" y="22" text-anchor="end" style="fill:var(--ep3);font-weight:700;">ep 3</text>
+      <rect class="cell-base" x="0"   y="5" width="32" height="32" rx="3" fill="var(--ep3)" opacity=".7" stroke="var(--ep3)"/>
+      <rect class="cell-base" x="36"  y="5" width="32" height="32" rx="3" fill="var(--ep3)" opacity=".7" stroke="var(--ep3)"/>
+      <rect class="cell-base" x="72"  y="5" width="32" height="32" rx="3" fill="var(--ep3)" opacity=".7" stroke="var(--ep3)"/>
+      <rect class="cell-base" x="108" y="5" width="32" height="32" rx="3" fill="var(--ep3)" opacity=".7" stroke="var(--ep3)"/>
+      <rect class="cell-base" x="144" y="5" width="32" height="32" rx="3" fill="var(--ep3)" opacity=".7" stroke="var(--ep3)"/>
+      <rect class="cell-base" x="180" y="5" width="32" height="32" rx="3" fill="var(--ep3)" opacity=".7" stroke="var(--ep3)"/>
+      <rect class="cell-base" x="216" y="5" width="32" height="32" rx="3" fill="var(--ep3)" opacity=".7" stroke="var(--ep3)"/>
+      <rect class="cell-base" x="252" y="5" width="32" height="32" rx="3" fill="var(--ep3)" opacity=".7" stroke="var(--ep3)"/>
+      <rect class="cell-base" x="288" y="5" width="32" height="32" rx="3" fill="var(--ep3)" opacity=".7" stroke="var(--ep3)"/>
+      <rect class="cell-base" x="324" y="5" width="32" height="32" rx="3" fill="var(--ep3)" opacity=".7" stroke="var(--ep3)"/>
+      <rect class="cell-base" x="360" y="5" width="32" height="32" rx="3" fill="var(--ep3)" opacity=".7" stroke="var(--ep3)"/>
+      <rect class="cell-base" x="396" y="5" width="32" height="32" rx="3" fill="var(--ep3)" opacity=".7" stroke="var(--ep3)"/>
+      <rect class="cell-base" x="432" y="5" width="32" height="32" rx="3" fill="var(--ep3)" opacity=".7" stroke="var(--ep3)"/>
+      <rect class="cell-base" x="468" y="5" width="32" height="32" rx="3" fill="var(--ep3)" opacity=".7" stroke="var(--ep3)"/>
+      <rect class="cell-base" x="504" y="5" width="32" height="32" rx="3" fill="var(--ep3)" opacity=".7" stroke="var(--ep3)"/>
+    </g>
+
+    <!-- Episode 4 - short (8 cells, will be evicted soon) -->
+    <g transform="translate(58, 560)">
+      <text class="alab" x="-10" y="22" text-anchor="end" style="fill:var(--ep4);font-weight:700;">ep 4</text>
+      <rect class="cell-base" x="0"   y="5" width="32" height="32" rx="3" fill="var(--ep4)" opacity=".7" stroke="var(--ep4)"/>
+      <rect class="cell-base" x="36"  y="5" width="32" height="32" rx="3" fill="var(--ep4)" opacity=".7" stroke="var(--ep4)"/>
+      <rect class="cell-base" x="72"  y="5" width="32" height="32" rx="3" fill="var(--ep4)" opacity=".7" stroke="var(--ep4)"/>
+      <rect class="cell-base" x="108" y="5" width="32" height="32" rx="3" fill="var(--ep4)" opacity=".7" stroke="var(--ep4)"/>
+      <rect class="cell-base" x="144" y="5" width="32" height="32" rx="3" fill="var(--ep4)" opacity=".7" stroke="var(--ep4)"/>
+      <rect class="cell-base" x="180" y="5" width="32" height="32" rx="3" fill="var(--ep4)" opacity=".7" stroke="var(--ep4)"/>
+      <rect class="cell-base" x="216" y="5" width="32" height="32" rx="3" fill="var(--ep4)" opacity=".7" stroke="var(--ep4)"/>
+      <rect class="cell-base" x="252" y="5" width="32" height="32" rx="3" fill="var(--ep4)" opacity=".7" stroke="var(--ep4)"/>
+    </g>
+
+    <!-- Annotation -->
+    <text class="alab" x="58" y="615" style="fill:var(--ink2);">↑ each row = one full episode of variable length · cells are still (s, a, r, s', d) tuples but indexed by episode</text>
+
+    <!-- Outer transparent area for tooltip -->
+    <rect x="40" y="350" width="1160" height="290" rx="10" fill="transparent" data-tip="The episode-indexed buffer stores whole episodes (lists of transitions). Sampling: pick a random episode → pick a random offset → return T contiguous transitions. Episodes are evicted whole when total transitions exceed capacity. Episodes shorter than T are dropped at append time."></rect>
+
+    <!-- ═══ Bottom: comparison callout ═══ -->
+    <g>
+      <rect class="nb nb-note" x="40" y="668" width="1160" height="92" rx="10"/>
+      <text class="nl tl-note" x="58" y="690">WHY THE REWRITE WAS NECESSARY</text>
+      <text class="ns" x="58" y="710" style="fill:var(--ink);font-size:12px;">An LSTM cannot build a meaningful hidden state from i.i.d. transitions — it needs <tspan style="font-weight:700;fill:var(--note-h);">contiguous sequences</tspan>.</text>
+      <text class="ns" x="58" y="728" style="fill:var(--ink);font-size:12px;">Standard RL libraries shipped no recurrent SAC implementation, so the buffer was redesigned from scratch:</text>
+      <text class="ns" x="58" y="746" style="fill:var(--ink);font-size:12px;">episodes-as-records, deque-of-episodes for FIFO eviction, per-sample fragment selection.</text>
+    </g>
+
+  </svg>
+
+  <!-- Legend -->
+  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding-top:14px;margin-top:18px;border-top:1px solid var(--bdr);font-family:'DM Mono',monospace;font-size:11px;color:var(--ink3);">
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:9px;height:9px;border-radius:2px;background:#0284C7;"></div>SAC buffer</div>
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:9px;height:9px;border-radius:2px;background:#DB2777;"></div>RSAC episode buffer</div>
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:9px;height:9px;border-radius:2px;background:#38bdf8;"></div>ep 1</div>
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:9px;height:9px;border-radius:2px;background:#fbbf24;"></div>ep 2</div>
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:9px;height:9px;border-radius:2px;background:#34d399;"></div>ep 3</div>
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:9px;height:9px;border-radius:2px;background:#a78bfa;"></div>ep 4</div>
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:9px;height:9px;border:2px solid #EA580C;background:transparent;box-shadow:0 0 6px rgba(234,88,12,.5);"></div>sampled</div>
+    <span style="margin-left:auto;font-size:9px;color:var(--ink3);">meetdoshi.me · SARATHI</span>
+  </div>
+</div>
+
+<div id="tp" style="display:none;position:fixed;max-width:280px;background:var(--bg2);border:1px solid var(--bdr);border-radius:8px;padding:10px 13px;font-size:10px;color:var(--ink2);line-height:1.7;z-index:200;pointer-events:none;font-family:'DM Mono',monospace;white-space:normal;word-break:break-word;box-shadow:0 8px 32px rgba(0,0,0,.5);"></div>
+
+<script>
+let dark = true;
+function tt() {
+  dark = !dark;
+  document.body.className = dark ? '' : 'light';
+  document.querySelector('.tg').textContent = dark ? '🌙' : '☀️';
+}
+
+const tp = document.getElementById('tp');
+const PAD = 14;
+document.querySelectorAll('[data-tip]').forEach(el => {
+  el.style.cursor = 'default';
+  el.addEventListener('mouseenter', e => {
+    tp.textContent = el.dataset.tip;
+    tp.style.left = '-9999px'; tp.style.top = '-9999px';
+    tp.style.display = 'block';
+  });
+  el.addEventListener('mousemove', e => {
+    const tw = tp.offsetWidth, th = tp.offsetHeight;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const cx = e.clientX, cy = e.clientY;
+    let left = cx + PAD, top = cy - th - PAD;
+    if (left + tw > vw - 8) left = cx - tw - PAD;
+    if (top < 8) top = cy + PAD;
+    if (left < 8) left = 8;
+    if (left + tw > vw - 8) left = vw - tw - 8;
+    if (top < 8) top = 8;
+    if (top + th > vh - 8) top = vh - th - 8;
+    tp.style.left = left + 'px';
+    tp.style.top = top + 'px';
+  });
+  el.addEventListener('mouseleave', () => { tp.style.display = 'none'; });
+});
+</script>
+</body>
+</html>
