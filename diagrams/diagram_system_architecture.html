@@ -293,15 +293,16 @@ document.querySelectorAll('[data-tip]').forEach(el=>{
 <script>
 (function(){
   function sendHeight(){
-    var h = Math.max(
-      document.body.scrollHeight,
-      document.documentElement.scrollHeight
-    );
-    window.parent.postMessage({ type:'iframeResize', h:h }, '*');
+    // Measure the wrapper div — correctly shrinks with SVG, grows with legend wrapping
+    var wrapper = document.querySelector('.wrap') ||
+                  document.body.firstElementChild ||
+                  document.body;
+    var bs = window.getComputedStyle(document.body);
+    var bodyPad = (parseFloat(bs.paddingTop)||0) + (parseFloat(bs.paddingBottom)||0);
+    var h = wrapper.getBoundingClientRect().height + bodyPad;
+    window.parent.postMessage({type:'iframeResize', h: Math.ceil(h) + 4}, '*');
   }
-  // Fire after load + short delay (handles JS-rendered SVG content)
   window.addEventListener('load', function(){ setTimeout(sendHeight, 150); });
-  // Re-fire on any layout change (theme toggle, tooltip open, window resize)
   if(window.ResizeObserver){
     new ResizeObserver(sendHeight).observe(document.documentElement);
   }
